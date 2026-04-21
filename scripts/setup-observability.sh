@@ -22,5 +22,5 @@ helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheu
   --wait
 
 echo "Log in to Grafana at http://localhost:8080 with admin/admin"
-echo "Run: kubectl --context=kind-worker-1 port-forward svc/kube-prometheus-stack-grafana 8080:80 -n monitoring"
+echo "Run for port forwarding: kubectl --context=kind-worker-1 port-forward svc/kube-prometheus-stack-grafana 8080:80 -n monitoring"
 
