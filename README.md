@@ -43,7 +43,7 @@ This project uses a sequence of shell scripts to predictably tear down and rebui
 
 1. Create local clusters
 ```bash
-./scripts/create-clusters.sh
+./scripts/setup-clusters.sh
 ```
 
 2. Initialize & Federate Karmada
@@ -58,7 +58,7 @@ This project uses a sequence of shell scripts to predictably tear down and rebui
 
 4. Grafana Dashboard
 ```bash
-./scripts/grafana-dashboards.sh
+./scripts/setup-dashboards.sh
 ```
 
 Once the scripts are up and running, you can access the Grafana UI locally:
