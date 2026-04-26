@@ -27,17 +27,6 @@ sudo mv karmadactl /usr/local/bin/
 
 Verify installation by running `karmadactl version`
 
-## Python Environment Setup
-
-We use `uv` to manage our Python dependencies for automation and data visualization to prevent conflicts with system packages. 
-
-Once you have cloned the repository, initialize your virtual environment and install the requirements:
-
-```bash
-# Sync virtual environment
-uv sync
-```
-
 ## Quick Start: Infrastructure Setup
 This project uses a sequence of shell scripts to predictably tear down and rebuild the simulated multi-cluster environment. Open your terminal in the root of the repository and execute the scripts in the following order:
 
@@ -63,10 +52,12 @@ This project uses a sequence of shell scripts to predictably tear down and rebui
 
 Once the scripts are up and running, you can access the Grafana UI locally:
 ```bash
-kubectl --context=kind-worker-1 port-forward svc/kube-prometheus-stack-grafana 8080:80 -n monitoring
+kubectl --context=kind-karmada-host port-forward svc/kube-prometheus-stack-grafana 8080:80 -n monitoring
 ```
 
 Navigate to `http://localhost:8080`, username `admin` and password `admin`
+
+To view metrics for worker clusters, you need to add their Prometheus endpoints through the Grafana UI using the URL.
 
 ## Contributors
 CSE 145/237D Junkyard Cluster of Clusters: Felicia, Blake, Tahseen, Andre, Afraz

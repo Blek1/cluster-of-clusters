@@ -21,7 +21,7 @@ for file in "$DASHBOARD_DIR"/*.json; do
   
   kubectl create configmap "$CM_NAME" \
     --from-file="$FILENAME.json=$file" \
-    --namespace monitoring \
+    --namespace monitoring 
     
   kubectl label configmap "$CM_NAME" grafana_dashboard="1" --namespace monitoring --overwrite
 done

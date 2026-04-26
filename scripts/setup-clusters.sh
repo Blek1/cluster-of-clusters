@@ -10,16 +10,16 @@ for cmd in docker kind kubectl; do
 done
 
 echo "Spinning up Karmada Host Cluster..."
-kind create cluster --name karmada-host
+kind create cluster --name karmada-host --config ../configs/kind/host-config.yaml
 
 sleep 60
 
 echo "Spinning up Worker Cluster 1..."
-kind create cluster --name worker-1 --config ../configs/kind/worker-config.yaml
+kind create cluster --name worker-1 --config ../configs/kind/worker1-config.yaml
 
-# sleep 60
+sleep 60
 
-# echo "Spinning up Worker Cluster 2..."
-# kind create cluster --name worker-2 --config ../configs/kind/worker-config.yaml
+echo "Spinning up Worker Cluster 2..."
+kind create cluster --name worker-2 --config ../configs/kind/worker2-config.yaml
 
 kubectl config get-contexts
