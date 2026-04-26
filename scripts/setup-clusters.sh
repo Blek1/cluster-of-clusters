@@ -12,12 +12,8 @@ done
 echo "Spinning up Karmada Host Cluster..."
 kind create cluster --name karmada-host --config ./configs/kind/host-config.yaml
 
-sleep 60
-
 echo "Spinning up Worker Cluster 1..."
 kind create cluster --name worker-1 --config ./configs/kind/worker1-config.yaml
-
-sleep 60
 
 echo "Spinning up Worker Cluster 2..."
 kind create cluster --name worker-2 --config ./configs/kind/worker2-config.yaml
