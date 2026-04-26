@@ -6,7 +6,7 @@ if ! command -v kubectl &> /dev/null; then
     exit 1
 fi
 
-DASHBOARD_DIR="../configs/prometheus-grafana/dashboards"
+DASHBOARD_DIR="./configs/prometheus-grafana/dashboards"
 mkdir -p "$DASHBOARD_DIR"
 
 kubectl config use-context kind-worker-1
