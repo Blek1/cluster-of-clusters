@@ -1,0 +1,15 @@
+# Generated state
+.state/
+results/
+
+# Generated artifacts
+artifacts/
+
+# Local upstream source checkout fetched on demand by bootstrap
+karmada/
+
+# Historical scratch material not needed for reproduction
+archive/
+
+# macOS
+.DS_Store
