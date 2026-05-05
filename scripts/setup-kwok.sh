@@ -73,10 +73,21 @@ kubectl config use-context kwok-kwok
 EXISTING=$(kubectl get nodes -l type=kwok --no-headers 2>/dev/null | wc -l | tr -d ' ')
 echo "Creating nodes $((EXISTING + 1)) to $NODES..."
 
-for i in $(seq $((EXISTING + 1)) $NODES); do
-    NODE_ID=$(printf "%04d" $i)
-    sed "s/\${NODE_ID}/$NODE_ID/g" $NODE_TEMPLATE | kubectl apply -f -
-done
+if [ "$NODES" -lt "$EXISTING" ]; then
+    echo "Scaling down from $EXISTING to $NODES nodes..."
+    for i in $(seq $((NODES + 1)) $EXISTING); do
+        NODE_ID=$(printf "%04d" $i)
+        kubectl delete node "kwok-node-$NODE_ID" --ignore-not-found
+    done
+elif [ "$NODES" -gt "$EXISTING" ]; then
+    echo "Creating nodes $((EXISTING + 1)) to $NODES..."
+    for i in $(seq $((EXISTING + 1)) $NODES); do
+        NODE_ID=$(printf "%04d" $i)
+        sed "s/\${NODE_ID}/$NODE_ID/g" $NODE_TEMPLATE | kubectl apply -f -
+    done
+else
+    echo "Already at $NODES nodes. Nothing to do."
+fi
 
 kubectl config get-contexts
 
