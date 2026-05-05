@@ -22,7 +22,7 @@ data:
       - target_label: __address__
         source_labels: [__meta_kubernetes_pod_ip]
         regex: '(.*)'
-        replacement: '${1}:10351'
+        replacement: '${1}:8080' # yo this shit was hardcoded uhhhhhh 
         action: replace
     - job_name: 'karmada-controller-manager'
       kubernetes_sd_configs:
@@ -35,7 +35,7 @@ data:
         action: keep
         regex: karmada-system;karmada-controller-manager
       - target_label: __address__
-        source_labels: [__address__]
+        source_labels: [__meta_kubernetes_pod_ip]
         regex: '(.*)'
         replacement: '${1}:8080'
         action: replace

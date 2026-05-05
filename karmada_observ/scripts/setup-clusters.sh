@@ -105,7 +105,7 @@ apply_memory_limit cluster-02 ${NODE_MEMORY_LIMIT}
 echo "Spinning up KIND Worker Clusters 01 & 02..."
 
 echo "==> Finished Cluster creation..."
-kubectl get nodes
+kubectl get nodes --context kind-host-01
 kubectl config get-contexts
 
 echo "Waiting for Karmada API to be ready..."
