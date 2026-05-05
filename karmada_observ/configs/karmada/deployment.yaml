@@ -1,0 +1,136 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: karmada-monitoring
+data:
+  prometheus.yml: |-
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+    scrape_configs:
+    - job_name: 'karmada-scheduler'
+      kubernetes_sd_configs:
+      - role: pod
+      scheme: http
+      tls_config:
+        insecure_skip_verify: true
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_pod_label_app]
+        action: keep
+        regex: karmada-system;karmada-scheduler
+      - target_label: __address__
+        source_labels: [__meta_kubernetes_pod_ip]
+        regex: '(.*)'
+        replacement: '${1}:10351'
+        action: replace
+    - job_name: 'karmada-controller-manager'
+      kubernetes_sd_configs:
+      - role: pod
+      scheme: http
+      tls_config:
+        insecure_skip_verify: true
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_pod_label_app]
+        action: keep
+        regex: karmada-system;karmada-controller-manager
+      - target_label: __address__
+        source_labels: [__address__]
+        regex: '(.*)'
+        replacement: '${1}:8080'
+        action: replace
+    - job_name: 'karmada-apiserver'
+      kubernetes_sd_configs:
+      - role: endpoints
+      scheme: https
+      tls_config:
+        insecure_skip_verify: true
+      bearer_token: KARMADA_TOKEN_PLACEHOLDER
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app]
+        action: keep
+        regex: karmada-apiserver
+      - target_label: __address__
+        replacement: karmada-apiserver.karmada-system.svc:5443
+    - job_name: 'karmada-aggregated-apiserver'
+      kubernetes_sd_configs:
+      - role: endpoints
+      scheme: https
+      tls_config:
+        insecure_skip_verify: true
+      bearer_token: KARMADA_TOKEN_PLACEHOLDER
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name]
+        action: keep
+        regex: karmada-system;karmada-aggregated-apiserver
+      - target_label: __address__
+        replacement: karmada-aggregated-apiserver.karmada-system.svc:443
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: karmada-monitoring
+  labels:
+    name: prometheus
+spec:
+  ports:
+  - name: prometheus
+    protocol: TCP
+    port: 9090
+    targetPort: 9090
+    nodePort: 31801
+  selector:
+    app: prometheus
+  type: NodePort
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: karmada-monitoring
+  labels:
+    name: prometheus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      serviceAccountName: prometheus
+      containers:
+      - name: prometheus
+        image: prom/prometheus:latest
+        command:
+        - "/bin/prometheus"
+        args:
+        - "--config.file=/etc/prometheus/prometheus.yml"
+        - "--storage.tsdb.path=/prom-data"
+        - "--storage.tsdb.retention.time=7d"
+        ports:
+        - containerPort: 9090
+          protocol: TCP
+        volumeMounts:
+        - mountPath: "/etc/prometheus"
+          name: prometheus-config
+        - mountPath: "/prom-data"
+          name: prom-data
+      initContainers:
+      - name: prometheus-data-permission-fix
+        image: busybox
+        command: ["/bin/chmod","-R","777", "/data"]
+        volumeMounts:
+        - name: prom-data
+          mountPath: /data
+      volumes:
+      - name: prometheus-config
+        configMap:
+          name: prometheus-config
+      - name: prom-data
+        hostPath:
+          path: /var/lib/prom-data
+          type: DirectoryOrCreate

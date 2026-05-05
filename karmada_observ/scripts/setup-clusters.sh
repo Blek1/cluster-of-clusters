@@ -7,7 +7,7 @@ KARMADA_DIR="$HOME/.karmada"
 KARMADA_KUBECONFIG="$KARMADA_DIR/karmada-apiserver.config"
 HOST_KUBECONFIG="$HOME/.kube/config"
 HOST_IPADDRESS="${HOST_IPADDRESS:-}"
-NODE_MEMORY_LIMIT="1.5g"
+NODE_MEMORY_LIMIT="2g"
 TMP_CONFIG_DIR=$(mktemp -d)
 SETUP_OBSERVABILITY="false"
 
@@ -19,7 +19,7 @@ sleeper() {
     printf "\r⏳ Waiting... %2d seconds remaining" $i
     sleep 1
   done
-  printf "\r✅ Done waiting!\n"
+  printf "\r✅ Done waiting!                    \n"
 }
 
 resolve_host_ip() {
@@ -94,9 +94,9 @@ echo "Using host API server address: ${HOST_IPADDRESS}"
 echo "Target topology: 3 clusters / 6 kind node containers / ${NODE_MEMORY_LIMIT} mem per node"
 
 echo "Spinning up KIND Clusters..."
-create_cluster host-01 ${ROOT_DIR}/configs/karmada/host-config.yaml
-create_cluster cluster-01 ${ROOT_DIR}/configs/karmada/worker01-config.yaml 
-create_cluster cluster-02 ${ROOT_DIR}/configs/karmada/worker02-config.yaml 
+create_cluster host-01 ${ROOT_DIR}/configs/kind/host-config.yaml
+create_cluster cluster-01 ${ROOT_DIR}/configs/kind/worker01-config.yaml 
+create_cluster cluster-02 ${ROOT_DIR}/configs/kind/worker02-config.yaml 
 
 apply_memory_limit host-01 ${NODE_MEMORY_LIMIT}
 apply_memory_limit cluster-01 ${NODE_MEMORY_LIMIT}
@@ -136,11 +136,11 @@ kubectl --kubeconfig=$HOME/.karmada/karmada-apiserver.config get clusters
 # Auto-run if flag set, otherwise prompt
 if [[ "${SETUP_OBSERVABILITY}" == "true" ]]; then
   echo "Auto-running observability setup..."
-  ${ROOT_DIR}/scripts/setup-observability.sh
+  ${ROOT_DIR}/scripts/setup-kube-observ.sh
 else
   read -p "Setup observability (Grafana + Prometheus)? [y/N] " answer
   if [[ "${answer}" =~ ^[Yy]$ ]]; then
-    ${ROOT_DIR}/scripts/setup-observability.sh
+    ${ROOT_DIR}/scripts/setup-kube-observ.sh
   else
     echo "Skipping observability setup."
   fi
