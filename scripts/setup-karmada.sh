@@ -28,8 +28,12 @@ karmadactl join worker-1 \
   --cluster-kubeconfig="$HOST_KUBECONFIG" \
   --cluster-context=kind-worker-1
 
-# echo "Joining Worker 2 to Karmada..."
+echo "Joining Worker 2 to Karmada..."
 # karmadactl join worker-2 --cluster-kubeconfig=$HOME/.kube/config --cluster-context=kind-worker-2
+karmadactl join worker-2 \
+  --karmada-kubeconfig="$KARMADA_KUBECONFIG" \
+  --cluster-kubeconfig="$HOST_KUBECONFIG" \
+  --cluster-context=kind-worker-2
 
 echo "Karmada Federation Complete! Verifying joined clusters:"
 # kubectl get clusters
