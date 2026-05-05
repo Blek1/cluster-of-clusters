@@ -11,48 +11,65 @@ done
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm repo update
 
-echo "Installing Central Observability (Grafana + Prometheus) on kubectl-host..."
-
+# host-01 — full stack with Grafana
+echo "Installing full observability stack on host-01..."
 helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
   --kube-context kind-host-01 \
   --namespace monitoring \
   --create-namespace \
   --set grafana.adminPassword=a \
+  --set prometheus.service.type=NodePort \
   --timeout 10m
 
-helm upgrade --install prometheus-node-exporter prometheus-community/prometheus-node-exporter \
-  --kube-context kind-cluster-01 \
-  --namespace monitoring \
-  --create-namespace \
-  --set service.type=NodePort 
+# worker clusters — Prometheus only, no Grafana, no alertmanager
+for CLUSTER in cluster-01 cluster-02; do
+  echo "Installing Prometheus on kind-${CLUSTER}..."
+  helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+    --kube-context kind-${CLUSTER} \
+    --namespace monitoring \
+    --create-namespace \
+    --set grafana.enabled=false \
+    --set alertmanager.enabled=false \
+    --set prometheus.service.type=NodePort \
+    --timeout 10m
+done
 
-helm upgrade --install prometheus-node-exporter prometheus-community/prometheus-node-exporter \
-  --kube-context kind-cluster-02 \
-  --namespace monitoring \
-  --create-namespace \
-  --set service.type=NodePort 
-
-# get worker node IPs and ports
+# get worker Prometheus IPs and ports
 CLUSTER01_IP=$(docker inspect cluster-01-control-plane --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
 CLUSTER02_IP=$(docker inspect cluster-02-control-plane --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
+CLUSTER01_PROM_PORT=$(kubectl --context kind-cluster-01 -n monitoring get svc kube-prometheus-stack-prometheus -o jsonpath='{.spec.ports[0].nodePort}')
+CLUSTER02_PROM_PORT=$(kubectl --context kind-cluster-02 -n monitoring get svc kube-prometheus-stack-prometheus -o jsonpath='{.spec.ports[0].nodePort}')
 
-CLUSTER01_PORT=$(kubectl --context kind-cluster-01 -n monitoring get svc prometheus-node-exporter -o jsonpath='{.spec.ports[0].nodePort}')
-CLUSTER02_PORT=$(kubectl --context kind-cluster-02 -n monitoring get svc prometheus-node-exporter -o jsonpath='{.spec.ports[0].nodePort}')
+echo "cluster-01 Prometheus: $CLUSTER01_IP:$CLUSTER01_PROM_PORT"
+echo "cluster-02 Prometheus: $CLUSTER02_IP:$CLUSTER02_PROM_PORT"
 
-echo "cluster-01 node-exporter: $CLUSTER01_IP:$CLUSTER01_PORT"
-echo "cluster-02 node-exporter: $CLUSTER02_IP:$CLUSTER02_PORT"
+# add worker Prometheus as datasources in host-01 Grafana
+echo "Waiting for Grafana to be ready..."
+kubectl wait --context kind-host-01 -n monitoring \
+  --for=condition=Ready pod \
+  -l app.kubernetes.io/name=grafana \
+  --timeout=120s
 
-# tell host-01 prometheus to scrape them
-helm upgrade kube-prometheus-stack prometheus-community/kube-prometheus-stack \
-  --kube-context kind-host-01 \
-  --namespace monitoring \
-  --reuse-values \
-  --set-json "prometheus.prometheusSpec.additionalScrapeConfigs=[
-    {\"job_name\":\"cluster-01-nodes\",\"static_configs\":[{\"targets\":[\"$CLUSTER01_IP:$CLUSTER01_PORT\"]}]},
-    {\"job_name\":\"cluster-02-nodes\",\"static_configs\":[{\"targets\":[\"$CLUSTER02_IP:$CLUSTER02_PORT\"]}]}
-  ]"
+# run in background 
+kubectl --context kind-host-01 port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80 &
+PF_PID=$!
+sleep 5
 
-  
+# IP:PORT where Grafana can query cluster01 prom  
+curl -s -X POST http://admin:a@localhost:3000/api/datasources \
+  -H "Content-Type: application/json" \
+  -d "{\"name\":\"cluster-01-prometheus\",\"type\":\"prometheus\",\"url\":\"http://$CLUSTER01_IP:$CLUSTER01_PROM_PORT\",\"access\":\"proxy\",\"isDefault\":false}"
+
+curl -s -X POST http://admin:a@localhost:3000/api/datasources \
+  -H "Content-Type: application/json" \
+  -d "{\"name\":\"cluster-02-prometheus\",\"type\":\"prometheus\",\"url\":\"http://$CLUSTER02_IP:$CLUSTER02_PROM_PORT\",\"access\":\"proxy\",\"isDefault\":false}"
+
+# kill background running process 
+kill $PF_PID
+echo ""
+echo "To check node Host Node status" 
+echo "kubectl get pods -n monitoring --context kind-host-01"
+
 echo "Done. To open Grafana:"
-echo "kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80"
+echo "kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80 --context kind-host-01"
 echo "Then visit http://localhost:3000 — login: admin / a"

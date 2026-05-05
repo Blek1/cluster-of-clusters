@@ -7,9 +7,11 @@ KARMADA_DIR="$HOME/.karmada"
 KARMADA_KUBECONFIG="$KARMADA_DIR/karmada-apiserver.config"
 HOST_KUBECONFIG="$HOME/.kube/config"
 HOST_IPADDRESS="${HOST_IPADDRESS:-}"
-NODE_MEMORY_LIMIT="NOT SET"
+NODE_MEMORY_LIMIT="2g"
 TMP_CONFIG_DIR=$(mktemp -d)
-SETUP_OBSERVABILITY="true"
+SETUP_OBSERVABILITY="false"
+
+
 trap 'rm -rf "${TMP_CONFIG_DIR}"' EXIT
 sleeper() { 
   local seconds=${1:-30}  # default 30 if not passed
@@ -75,17 +77,31 @@ create_cluster() {
     --config "${TMP_CONFIG_DIR}/${name}.yaml"
 }
 
+apply_memory_limit() {
+  local cluster=$1
+  local limit=$2
+  echo "Applying memory limit ${limit} to ${cluster} nodes..."
+  docker ps --format '{{.Names}}' | grep "^${cluster}-" | while read node; do
+    docker update --memory="${limit}" --memory-swap="${limit}" "${node}"
+  done
+}
+
 
 echo "Cleaning up prior..."
 ${ROOT_DIR}/scripts/cleanup.sh
 resolve_host_ip
 echo "Using host API server address: ${HOST_IPADDRESS}"
-echo "Target topology: 3 clusters / 12 kind node containers / ${NODE_MEMORY_LIMIT} mem per node"
+echo "Target topology: 3 clusters / 6 kind node containers / ${NODE_MEMORY_LIMIT} mem per node"
 
 echo "Spinning up KIND Clusters..."
 create_cluster host-01 ${ROOT_DIR}/configs/karmada/host-config.yaml
 create_cluster cluster-01 ${ROOT_DIR}/configs/karmada/worker01-config.yaml 
 create_cluster cluster-02 ${ROOT_DIR}/configs/karmada/worker02-config.yaml 
+
+apply_memory_limit host-01 ${NODE_MEMORY_LIMIT}
+apply_memory_limit cluster-01 ${NODE_MEMORY_LIMIT}
+apply_memory_limit cluster-02 ${NODE_MEMORY_LIMIT}
+
 echo "Spinning up KIND Worker Clusters 01 & 02..."
 
 echo "==> Finished Cluster creation..."
