@@ -69,10 +69,20 @@ if [ "$NUM_CLUSTERS" -gt 1 ]; then
     echo "[3/8] Initializing Karmada Federation..."
     KARMADA_DIR="$HOME/.karmada"
     kubectl config use-context $HOST_CONTEXT
-    karmadactl init --karmada-data="$KARMADA_DIR" --karmada-pki="$KARMADA_DIR/pki" > /dev/null 2>&1
+    karmadactl init --karmada-data="$KARMADA_DIR" --karmada-pki="$KARMADA_DIR/pki" #> /dev/null 2>&1
     sleep 30 # buffer for api
     for i in $(seq 1 $NUM_CLUSTERS); do
-        karmadactl join worker-$i --kubeconfig="$KARMADA_DIR/karmada-apiserver.config" --cluster-kubeconfig="$HOME/.kube/config" --cluster-context=kind-worker-$i > /dev/null 2>&1
+        # extract internal docker IP of the worker cluster
+        WORKER_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' worker-${i}-control-plane)
+
+        # isolate kubeconfig for this worker
+        kubectl config view --context=kind-worker-$i --minify --flatten > "/tmp/worker-${i}-raw.kubeconfig"
+
+        # translate laptop's localhost IP into the internal Docker network IP
+        sed -e "s|127.0.0.1:[0-9]*|$WORKER_IP:6443|g" -e "s|0.0.0.0:[0-9]*|$WORKER_IP:6443|g" "/tmp/worker-${i}-raw.kubeconfig" > "/tmp/worker-${i}.kubeconfig"
+
+        # join karmada using the translated internal config
+        karmadactl join worker-$i --kubeconfig="$KARMADA_DIR/karmada-apiserver.config" --cluster-kubeconfig="/tmp/worker-${i}.kubeconfig" --cluster-context=kind-worker-$i #> /dev/null 2>&1
     done
 else
     echo "[3/8] Single cluster... Bypassing Karmada Federation..."
@@ -297,10 +307,11 @@ EOF
 
     kubectl --context=$HOST_CONTEXT apply -f "$DS_FILE" > /dev/null 2>&1
     
-    echo "Downloading Karmada dashboards..."
-    curl -sL https://raw.githubusercontent.com/karmada-io/karmada/master/artifacts/grafana/karmada-apiserver-dashboard.json -o ../configs/prometheus-grafana/apiserver.json
-    curl -sL https://raw.githubusercontent.com/karmada-io/karmada/master/artifacts/grafana/karmada-controller-manager-dashboard.json -o ../configs/prometheus-grafana/controller.json
-    curl -sL https://raw.githubusercontent.com/karmada-io/karmada/master/artifacts/grafana/karmada-scheduler-dashboard.json -o ../configs/prometheus-grafana/scheduler.json
+    # echo "Downloading Karmada dashboards..."
+    # curl -sL https://raw.githubusercontent.com/karmada-io/karmada/master/artifacts/grafana/karmada-apiserver-dashboard.json -o ../configs/prometheus-grafana/apiserver.json
+    # curl -sL https://raw.githubusercontent.com/karmada-io/karmada/master/artifacts/grafana/karmada-controller-manager-dashboard.json -o ../configs/prometheus-grafana/controller.json
+    # curl -sL https://raw.githubusercontent.com/karmada-io/karmada/master/artifacts/grafana/karmada-scheduler-dashboard.json -o ../configs/prometheus-grafana/scheduler.json
+    # these don't really seem to work?
 
     # inject local dashboards into grafana
     kubectl --context=$HOST_CONTEXT create configmap karmada-dashboards \
@@ -315,7 +326,6 @@ EOF
     kubectl --context=$HOST_CONTEXT rollout restart deployment kube-prometheus-stack-grafana -n monitoring > /dev/null 2>&1
     kubectl --context=$HOST_CONTEXT rollout status deployment kube-prometheus-stack-grafana -n monitoring --timeout=60s > /dev/null 2>&1
 
-    # the whole inject karmada dashboards into grafana doesn't really seem to work so far... don't know why yet
 fi
 
 echo "Infrastructure Ready... Observability Deployed..."
@@ -371,7 +381,7 @@ EOF
     for i in $(seq 1 $NUM_CLUSTERS); do echo "        - worker-$i" >> "$MANIFEST"; done
     cat <<EOF >> "$MANIFEST"
     replicaScheduling:
-      replicaDivisionPreference: Aggregated
+      replicaDivisionPreference: Weighted
       replicaSchedulingType: Divided
 EOF
     kubectl --kubeconfig="$KARMADA_DIR/karmada-apiserver.config" apply -f "$MANIFEST"
@@ -385,10 +395,19 @@ START_TIME=$(date +%s)
 if [ "$NUM_CLUSTERS" -eq 1 ]; then
     kubectl --context=$HOST_CONTEXT rollout status deployment/workload-nginx --timeout=15m
 else
+    # wait for all worker clusters to finish
     for i in $(seq 1 $NUM_CLUSTERS); do
-        kubectl --context=kind-worker-$i rollout status deployment/workload-nginx --timeout=15m &
+        (
+            # wait for karmada to propagate deployment to worker
+            while ! kubectl --context=kind-worker-$i get deployment workload-nginx > /dev/null 2>&1; do
+                sleep 1
+            done
+
+            # once it exists, track the actual pod rollout
+            kubectl --context=kind-worker-$i rollout status deployment/workload-nginx --timeout=15m
+        ) &
     done
-    wait
+    wait # hold until all background rollout watches finish
 fi
 
 END_TIME=$(date +%s)
