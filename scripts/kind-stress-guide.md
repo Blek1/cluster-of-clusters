@@ -88,4 +88,4 @@ This tests how `worker-1` reacts to 10 mixed CPU/memory stress Pods for 5 minute
 
 ## Notes
 
-This script is useful because it gives the team a repeatable way to overload a cluster and compare behavior across different topologies, like one large cluster versus multiple smaller clusters.
+This script is useful because it gives us a repeatable way to overload a cluster and compare behavior across different topologies, like one large cluster versus multiple smaller clusters.
