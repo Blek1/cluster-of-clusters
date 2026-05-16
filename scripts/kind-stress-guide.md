@@ -72,9 +72,9 @@ Prints useful PromQL queries for checking CPU, memory, running Pods, and node pr
 1. Open Grafana.
 2. Take note of the cluster’s normal CPU and memory usage.
 3. Run a stress test.
-4. Watch the `cse145-stress` namespace in Grafana.
+4. View karmada-host, worker1, or worker2 in grafana dashboard under cluster resources.
 5. Record CPU usage, memory usage, Pod failures, or node pressure.
-6. Run cleanup when finished.
+6. Run cleanup when finished (or let it finish on its own)
 
 ## Example Experiment
 
