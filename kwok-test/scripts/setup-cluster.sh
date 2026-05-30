@@ -139,7 +139,7 @@ kubectl get nodes
 kubectl config get-contexts
 
 echo "Waiting for Karmada API to be ready..."
-sleeper 15
+sleeper 20
 
 echo "Initializing Karmada on host-01..."
 kubectl config use-context kind-host-01
