@@ -7,7 +7,7 @@ for cmd in kubectl helm; do
     exit 1
   }
 done
-
+SETUP_OBSERVABILITY="true"
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
@@ -50,11 +50,18 @@ helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheu
     {\"name\":\"karmada-prometheus\",\"type\":\"prometheus\",\"url\":\"http://prometheus.karmada-monitoring.svc:9090\",\"access\":\"proxy\",\"isDefault\":false}
   ]"
 
-read -p "Setup observability of karmada? [y/N] " answer
-if [[ "${answer}" =~ ^[Yy]$ ]]; then
+# Auto-run if flag set, otherwise prompt
+if [[ "${SETUP_OBSERVABILITY}" == "true" ]]; then
+  echo "Auto-running observability setup..."
   ${ROOT_DIR}/scripts/setup-karm-observ.sh
+else
+  read -p "Setup observability (Grafana + Prometheus)? [y/N] " answer
+  if [[ "${answer}" =~ ^[Yy]$ ]]; then
+    ${ROOT_DIR}/scripts/setup-karm-observ.sh
+  else
+    echo "Skipping observability setup."
+  fi
 fi
-
 echo ""
 echo "To check node Host Node status:"
 echo "kubectl get pods -n monitoring --context kind-host-01"

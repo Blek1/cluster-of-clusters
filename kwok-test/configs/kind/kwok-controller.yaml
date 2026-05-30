@@ -1,0 +1,61 @@
+# configs/kwok/kwok-controller.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kwok-controller
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kwok-controller
+rules:
+  - apiGroups: [""]
+    resources: ["nodes", "pods"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["nodes/status", "pods/status"]
+    verbs: ["update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kwok-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kwok-controller
+subjects:
+  - kind: ServiceAccount
+    name: kwok-controller
+    namespace: kube-system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kwok-controller
+  namespace: kube-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kwok-controller
+  template:
+    metadata:
+      labels:
+        app: kwok-controller
+    spec:
+      serviceAccountName: kwok-controller
+      containers:
+        - name: kwok-controller
+          image: registry.k8s.io/kwok/kwok:v0.6.0
+          args:
+            - --manage-nodes-with-annotation-selector=kwok.x-k8s.io/node=fake
+            - --manage-all-nodes=false
+            - --cidr=10.0.0.1/24
+            - --node-ip=$(POD_IP)
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP

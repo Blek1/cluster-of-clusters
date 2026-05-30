@@ -9,7 +9,6 @@ HOST_KUBECONFIG="$HOME/.kube/config"
 HOST_IPADDRESS="${HOST_IPADDRESS:-}"
 NODE_MEMORY_LIMIT="1.5g"
 TMP_CONFIG_DIR=$(mktemp -d)
-SETUP_OBSERVABILITY="false"
 
 
 trap 'rm -rf "${TMP_CONFIG_DIR}"' EXIT
@@ -86,25 +85,56 @@ apply_memory_limit() {
   done
 }
 
+create_member_cluster() {
+  local index=$1  # e.g. 1, 2, 3
+  local name="member-0${index}"
+
+  # Each member gets unique subnets by incrementing third octet
+  # member-01: 10.220.1.0/16 pods, 10.120.1.0/16 services
+  # member-02: 10.220.2.0/16 pods, 10.120.2.0/16 services
+
+  local pod_subnet="10.220.${index}.0/16"
+  local svc_subnet="10.120.${index}.0/16"
+
+  # Write the config to a temp file
+  local config="${TMP_CONFIG_DIR}/${name}.yaml"
+  cat > "${config}" <<EOF
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+networking:
+  podSubnet: "${pod_subnet}"
+  serviceSubnet: "${svc_subnet}"
+nodes:
+  - role: control-plane
+EOF
+
+  # Inject host IP 
+  render_kind_config "${config}" "${TMP_CONFIG_DIR}/${name}-rendered.yaml"
+
+  echo "Creating member cluster: ${name} (pods: ${pod_subnet}, svcs: ${svc_subnet})"
+  if kind get clusters 2>/dev/null | grep -qx "${name}"; then
+    echo "Deleting existing cluster: ${name}"
+    kind delete cluster --name "${name}"
+  fi
+
+  kind create cluster \
+    --name "${name}" \
+    --config "${TMP_CONFIG_DIR}/${name}-rendered.yaml"
+
+  apply_memory_limit "${name}" "${NODE_MEMORY_LIMIT}"
+}
+
 
 echo "Cleaning up prior..."
 ${ROOT_DIR}/scripts/cleanup.sh
 resolve_host_ip
 echo "Using host API server address: ${HOST_IPADDRESS}"
-echo "Target topology: 3 clusters / 6 kind node containers / ${NODE_MEMORY_LIMIT} mem per node"
 
-echo "Spinning up KIND Clusters..."
-create_cluster host-01 ${ROOT_DIR}/configs/karmada/host-config.yaml
-create_cluster cluster-01 ${ROOT_DIR}/configs/karmada/worker01-config.yaml 
-create_cluster cluster-02 ${ROOT_DIR}/configs/karmada/worker02-config.yaml 
+echo "Spinning up HOST Karamda Cluster..."
+create_cluster host-01 ${ROOT_DIR}/configs/kind/host-config.yaml
 
 apply_memory_limit host-01 ${NODE_MEMORY_LIMIT}
-apply_memory_limit cluster-01 ${NODE_MEMORY_LIMIT}
-apply_memory_limit cluster-02 ${NODE_MEMORY_LIMIT}
 
-echo "Spinning up KIND Worker Clusters 01 & 02..."
-
-echo "==> Finished Cluster creation..."
 kubectl get nodes
 kubectl config get-contexts
 
@@ -118,17 +148,39 @@ karmadactl init \
     --karmada-pki="$KARMADA_DIR/pki" \
     --karmada-apiserver-advertise-address=${HOST_IPADDRESS}
 
-echo "Joining worker clusters to Karmada..."
-karmadactl join cluster-01 \
-  --kubeconfig=$HOME/.karmada/karmada-apiserver.config \
-  --cluster-kubeconfig=$HOME/.kube/config \
-  --cluster-context=kind-cluster-01
-
-karmadactl join cluster-02 \
-  --kubeconfig=$HOME/.karmada/karmada-apiserver.config \
-  --cluster-kubeconfig=$HOME/.kube/config \
-  --cluster-context=kind-cluster-02
-
 echo "==> Verifying joined clusters..."
 sleeper 15
 kubectl --kubeconfig=$HOME/.karmada/karmada-apiserver.config get clusters
+
+
+echo "Spinning up MEMBER KIND Clusters..."
+MEMBER_COUNT="${MEMBER_COUNT:-3}"
+for i in $(seq 1 "${MEMBER_COUNT}"); do
+  create_member_cluster "${i}"
+done
+
+echo "Joining members to Karmada..."
+for i in $(seq 1 "${MEMBER_COUNT}"); do
+  name="member-0${i}"
+  echo "Joining ${name}..."
+  karmadactl join "${name}" \
+    --kubeconfig="${KARMADA_KUBECONFIG}" \
+    --cluster-kubeconfig="${HOST_KUBECONFIG}" \
+    --cluster-context="kind-${name}"
+done
+
+echo "Spinning up KWOK in each member..."
+for i in $(seq 1 "${MEMBER_COUNT}"); do
+  name="member-0${i}"
+  kubectl config use-context "kind-${name}"
+
+  # static — just apply it
+  kubectl apply -f "${ROOT_DIR}/configs/kind/kwok-controller.yaml"
+
+  # templated — loop and swap NODE_INDEX
+  for n in $(seq 0 99); do
+    sed "s/NODE_INDEX/${n}/g" \
+      "${ROOT_DIR}/configs/kind/kwok-node-template.yaml" \
+      | kubectl apply -f -
+  done
+done

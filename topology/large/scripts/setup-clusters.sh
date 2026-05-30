@@ -1,25 +1,22 @@
 #!/bin/bash
-# basic cluster of clusters
+# large-01 20 node KIND cluster for resource limit testing
 set -e
 
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-KARMADA_DIR="$HOME/.karmada" 
-KARMADA_KUBECONFIG="$KARMADA_DIR/karmada-apiserver.config"
-HOST_KUBECONFIG="$HOME/.kube/config"
-HOST_IPADDRESS="${HOST_IPADDRESS:-}"
-NODE_MEMORY_LIMIT="1.5g"
+CLUSTER_NAME="large-01"
+NODE_MEMORY_LIMIT="1g"
 TMP_CONFIG_DIR=$(mktemp -d)
-SETUP_OBSERVABILITY="false"
-
+HOST_IPADDRESS="${HOST_IPADDRESS:-}"
 
 trap 'rm -rf "${TMP_CONFIG_DIR}"' EXIT
-sleeper() { 
-  local seconds=${1:-30}  # default 30 if not passed
+
+sleeper() {
+  local seconds=${1:-30}
   for i in $(seq $seconds -1 1); do
     printf "\r⏳ Waiting... %2d seconds remaining" $i
     sleep 1
   done
-  printf "\r✅ Done waiting!\n"
+  printf "\r✅ Done waiting!                    \n"
 }
 
 resolve_host_ip() {
@@ -48,7 +45,6 @@ PY
 }
 
 render_kind_config() {
-  # injects HOST_IPADDR into .yaml 
   local src=$1
   local dst=$2
   awk -v host_ip="${HOST_IPADDRESS}" '
@@ -60,6 +56,7 @@ render_kind_config() {
     { print $0 }
   ' "${src}" >"${dst}"
 }
+
 create_cluster() {
   local name=$1
   local config=$2
@@ -86,49 +83,50 @@ apply_memory_limit() {
   done
 }
 
+# -- main ------------------------------------------------------------------------
 
 echo "Cleaning up prior..."
 ${ROOT_DIR}/scripts/cleanup.sh
 resolve_host_ip
 echo "Using host API server address: ${HOST_IPADDRESS}"
-echo "Target topology: 3 clusters / 6 kind node containers / ${NODE_MEMORY_LIMIT} mem per node"
+echo "Target topology: 1 cluster / 20 kind node containers / ${NODE_MEMORY_LIMIT} mem per node"
 
-echo "Spinning up KIND Clusters..."
-create_cluster host-01 ${ROOT_DIR}/configs/karmada/host-config.yaml
-create_cluster cluster-01 ${ROOT_DIR}/configs/karmada/worker01-config.yaml 
-create_cluster cluster-02 ${ROOT_DIR}/configs/karmada/worker02-config.yaml 
 
-apply_memory_limit host-01 ${NODE_MEMORY_LIMIT}
-apply_memory_limit cluster-01 ${NODE_MEMORY_LIMIT}
-apply_memory_limit cluster-02 ${NODE_MEMORY_LIMIT}
+echo "Spinning up KIND cluster: ${CLUSTER_NAME}..."
+create_cluster ${CLUSTER_NAME} ${ROOT_DIR}/configs/kind/cluster-config.yaml
 
-echo "Spinning up KIND Worker Clusters 01 & 02..."
+apply_memory_limit ${CLUSTER_NAME} ${NODE_MEMORY_LIMIT}
 
-echo "==> Finished Cluster creation..."
-kubectl get nodes
+echo "==> Waiting for all nodes to be Ready..."
+kubectl wait --context "kind-${CLUSTER_NAME}" \
+  --for=condition=Ready nodes --all --timeout=120s
+
+echo "==> Finished cluster creation..."
+kubectl get nodes --context kind-${CLUSTER_NAME}
 kubectl config get-contexts
 
-echo "Waiting for Karmada API to be ready..."
-sleeper 15
 
-echo "Initializing Karmada on host-01..."
-kubectl config use-context kind-host-01
-karmadactl init \
-    --karmada-data="$KARMADA_DIR" \
-    --karmada-pki="$KARMADA_DIR/pki" \
-    --karmada-apiserver-advertise-address=${HOST_IPADDRESS}
+echo "==> Docker memory usage per node:"
+docker stats --no-stream --format "table {{.Name}}\t{{.MemUsage}}\t{{.MemPerc}}" \
+  | grep "${CLUSTER_NAME}"
 
-echo "Joining worker clusters to Karmada..."
-karmadactl join cluster-01 \
-  --kubeconfig=$HOME/.karmada/karmada-apiserver.config \
-  --cluster-kubeconfig=$HOME/.kube/config \
-  --cluster-context=kind-cluster-01
 
-karmadactl join cluster-02 \
-  --kubeconfig=$HOME/.karmada/karmada-apiserver.config \
-  --cluster-kubeconfig=$HOME/.kube/config \
-  --cluster-context=kind-cluster-02
+# -- observability ------------------------------------------------------------------------
 
-echo "==> Verifying joined clusters..."
-sleeper 15
-kubectl --kubeconfig=$HOME/.karmada/karmada-apiserver.config get clusters
+echo "Installing Prometheus + Grafana on ${CLUSTER_NAME}..."
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+
+helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+  --kube-context "kind-${CLUSTER_NAME}" \
+  --namespace monitoring \
+  --create-namespace \
+  --set grafana.adminPassword=admin \
+  --set prometheus.service.type=NodePort \
+  --timeout 10m \
+  --wait
+
+echo ""
+echo "==> To open Grafana:"
+echo "kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80 --context kind-${CLUSTER_NAME}"
+echo "Then visit http://localhost:3000 — login: admin / admin"

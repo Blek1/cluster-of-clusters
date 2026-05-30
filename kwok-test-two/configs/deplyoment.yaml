@@ -1,0 +1,33 @@
+# deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{.Name}}
+  labels:
+    group: test-deployment
+spec:
+  replicas: {{.Replicas}}
+  selector:
+    matchLabels:
+      app: fake-pod
+  template:
+    metadata:
+      labels:
+        app: fake-pod
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: type
+                    operator: In
+                    values:
+                      - fake-kubelet
+      tolerations: # A taints was added to an automatically created Node. You can remove taints of Node or add this tolerations
+          - key: "fake-kubelet/provider"
+            operator: "Exists"
+            effect: "NoSchedule"
+      containers:
+        - image: fake-pod
+          name: {{.Name}}

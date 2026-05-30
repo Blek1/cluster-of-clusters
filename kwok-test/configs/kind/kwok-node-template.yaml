@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: Node
+metadata:
+  annotations:
+    kwok.x-k8s.io/node: fake
+  labels:
+    type: kwok
+    kubernetes.io/hostname: fake-node-NODE_INDEX
+  name: fake-node-NODE_INDEX
+spec:
+  taints:
+    - effect: NoSchedule
+      key: kwok.x-k8s.io/node
+      value: fake
+status:
+  allocatable:
+    cpu: "8"
+    memory: 16Gi
+    pods: "110"
+  capacity:
+    cpu: "8"
+    memory: 16Gi
+    pods: "110"
+  phase: Running
