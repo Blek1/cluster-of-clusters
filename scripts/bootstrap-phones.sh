@@ -19,18 +19,14 @@ if [ "$NUM_WORKER_CLUSTERS" -eq 1 ]; then
   echo "The hardware is already natively in this configuration. Skipping K3s rebuild..."
   echo "Deploying Central Observability Stack (pf-006)..."
 
-  helm repo add prometheus-community https://prometheus-community.github.io/helm-charts > /dev/null 2>&1 || true
-  helm repo update > /dev/null 2>&1
-
   kubectl --kubeconfig=$HOST_KUBECONFIG create namespace monitoring || true
 
-  helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+  helm upgrade --install kube-prometheus-stack ./kube-prometheus-stack-*.tgz \
     --kubeconfig=$HOST_KUBECONFIG \
     --namespace monitoring \
     --set grafana.adminPassword=admin \
     --set grafana.service.type=NodePort \
-    --set grafana.service.nodePort=32000 \
-    --wait > /dev/null 2>&1
+    --set grafana.service.nodePort=32000
 
   echo "  -> Loading Dashboards..."
   kubectl --kubeconfig=$HOST_KUBECONFIG create configmap custom-dashboards \
@@ -51,11 +47,17 @@ PHONE_IPS=(10.0.0.17 10.0.0.18 10.0.0.19 10.0.0.20 10.0.0.21 10.0.0.22 10.0.0.23
 PHONE_NAMES=(pf-007 pf-008 pf-009 pf-010 pf-011 pf-012 pf-013 pf-014 pf-016 pf-017 pf-019 pf-021 pf-024 pf-031 pf-032 pf-033 pf-035 pf-036)
 
 echo "[1/5] Carving out $NUM_WORKER_CLUSTERS Member Clusters from Cluster D..."
-PHONE_INDEX=0
+
+# Reserve 2 phones to stay in the Host Cluster to run the Karmada Control Plane
+HOST_WORKER_NODES=2
+AVAILABLE_MEMBER_NODES=$(( TOTAL_WORKER_NODES - HOST_WORKER_NODES ))
+
+# Advance the starting index so we skip over the reserved Host phones
+PHONE_INDEX=$HOST_WORKER_NODES
 
 # Base calculation for uneven splits
-BASE_NODES_PER_CLUSTER=$(( TOTAL_WORKER_NODES / NUM_WORKER_CLUSTERS ))
-REMAINING_NODES=$(( TOTAL_WORKER_NODES % NUM_WORKER_CLUSTERS ))
+BASE_NODES_PER_CLUSTER=$(( AVAILABLE_MEMBER_NODES / NUM_WORKER_CLUSTERS ))
+REMAINING_NODES=$(( AVAILABLE_MEMBER_NODES % NUM_WORKER_CLUSTERS ))
 
 for i in $(seq 1 $NUM_WORKER_CLUSTERS); do
     POD_CIDR="10.$((48 + i * 2)).0.0/16"
@@ -106,43 +108,60 @@ for i in $(seq 1 $NUM_WORKER_CLUSTERS); do
     done
 done
 
-echo "[2/5] Installing Karmada on Host Cluster (pf-006)..."
-kubectl --kubeconfig=$HOST_KUBECONFIG apply -f https://github.com/karmada-io/karmada/releases/download/v1.9.0/karmada.yaml > /dev/null 2>&1
+echo "[2/5] Installing Karmada CLI and Control Plane..."
+
+if ! command -v kubectl-karmada &> /dev/null; then
+    echo "  -> Downloading and installing Karmada CLI..."
+    curl -s https://raw.githubusercontent.com/karmada-io/karmada/master/hack/install-cli.sh | sudo bash -s kubectl-karmada
+else
+    echo "  -> Karmada CLI already detected. Skipping download!"
+fi
+
+echo "  -> Unlocking Host Worker nodes for Karmada scheduling..."
+# Untaint the reserved phones so the Control Plane drops onto them instead of pf-006
+for i in $(seq 0 $((HOST_WORKER_NODES - 1))); do
+    NODE_NAME=${PHONE_NAMES[$i]}
+    kubectl --kubeconfig=$HOST_KUBECONFIG taint nodes $NODE_NAME reservation=cluster-of-clusters-until-2026-06-12:NoSchedule- > /dev/null 2>&1 || true
+done
+
+echo "  -> Initializing Karmada (with sudo for /etc/karmada directory)..."
+sudo kubectl karmada init --kubeconfig=$HOST_KUBECONFIG
+
 echo "Waiting 60 seconds for Karmada API pods to stand up..."
 sleep 60
 
 echo "[3/5] Fetching Karmada Kubeconfig..."
-kubectl --kubeconfig=$HOST_KUBECONFIG get secret karmada-kubeconfig -n karmada-system -o jsonpath={.data.karmada-kubeconfig} | base64 -d > /home/luffy/clusters/karmada-apiserver.config
+sudo cp /etc/karmada/karmada-apiserver.config /home/luffy/clusters/karmada-apiserver.config
+sudo chown $(whoami):$(whoami) /home/luffy/clusters/karmada-apiserver.config
 
 echo "[4/5] Joining Member Clusters to Karmada..."
 for i in $(seq 1 $NUM_WORKER_CLUSTERS); do
     echo "  -> Joining worker-$i..."
-    karmadactl join worker-$i --kubeconfig="/home/luffy/clusters/karmada-apiserver.config" --cluster-kubeconfig="/home/luffy/clusters/worker-${i}.kubeconfig"
+    # Safely clear old registrations to avoid ghost-cluster conflicts
+    kubectl --kubeconfig="/home/luffy/clusters/karmada-apiserver.config" delete cluster worker-$i --ignore-not-found=true > /dev/null 2>&1 || true
+    
+    # Join the fresh cluster
+    kubectl karmada join worker-$i --kubeconfig="/home/luffy/clusters/karmada-apiserver.config" --cluster-kubeconfig="/home/luffy/clusters/worker-${i}.kubeconfig"
 done
 
 echo "[5/5] Deploying Central Observability Stack to Host (pf-006)..."
-helm repo add prometheus-community https://prometheus-community.github.io/helm-charts > /dev/null 2>&1 || true
-helm repo update > /dev/null 2>&1
 
 kubectl --kubeconfig=$HOST_KUBECONFIG create namespace monitoring || true
-
-helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+helm upgrade --install kube-prometheus-stack ./kube-prometheus-stack-*.tgz \
   --kubeconfig=$HOST_KUBECONFIG \
   --namespace monitoring \
   --set grafana.adminPassword=admin \
   --set grafana.service.type=NodePort \
-  --set grafana.service.nodePort=32000 \
-  --wait > /dev/null 2>&1
+  --set grafana.service.nodePort=32000
 
 for i in $(seq 1 $NUM_WORKER_CLUSTERS); do
     echo "  -> Deploying Prometheus to worker-$i..."
     kubectl --kubeconfig="/home/luffy/clusters/worker-${i}.kubeconfig" create namespace monitoring || true
-    helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+    helm upgrade --install kube-prometheus-stack ./kube-prometheus-stack-*.tgz \
       --kubeconfig="/home/luffy/clusters/worker-${i}.kubeconfig" \
       --namespace monitoring \
       --set grafana.enabled=false \
-      --set prometheus.service.type=NodePort \
-      --wait > /dev/null 2>&1
+      --set prometheus.service.type=NodePort
 done
 
 echo "  -> Wiring Data Sources..."
