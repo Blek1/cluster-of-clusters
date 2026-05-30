@@ -8,7 +8,7 @@ namespace:
 tuningSets:
 - name: SlowQPS
   qpsLoad:
-    qps: 0.5    # 1 object every 10 seconds — gentle on apiserver
+    qps: 0.5    # 1 object every 10 sec
 - name: FastQPS
   qpsLoad:
     qps: 1      # 1 object per second

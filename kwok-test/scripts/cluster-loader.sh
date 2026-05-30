@@ -1,7 +1,7 @@
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 # deplyoments = API objects, like dummy containers written into etcd (karmada key value storage)
 export KARMADA_KUBECONFIG=$HOME/.karmada/karmada-apiserver.config
-export KARMADA_IP=192.168.1.153   # also update this, you said it's .153 not .158
+export KARMADA_IP=192.168.1.153   
 
 cd "${ROOT_DIR}/perf-tests/clusterloader2"
 
