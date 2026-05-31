@@ -17,9 +17,9 @@ Our testing pipeline is split into two phases to account for the physical networ
     ./run-experiments.sh 3
 
 ## Topologies Tested
-1. 1 Cluster (Baseline): 19 nodes
-2. 2 Clusters (1 Host + 2 Members): 3 phones | 8 phones | 8 phones = 19 Total
-3. 3 Clusters (1 Host + 3 Members): 3 phones | 6 phones | 5 phones | 5 phones = 19 Total
-4. 4 Clusters (1 Host + 4 Members): 3 phones | 4 phones | 4 phones | 4 phones | 4 phones = 19 Total
-5. 5 Clusters (1 Host + 5 Members): 3 phones | 4 phones | 3 phones | 3 phones | 3 phones | 3 phones = 19 Total
-6. 6 Clusters (1 Host + 6 Members): 3 phones | 3 phones | 3 phones | 3 phones | 3 phones | 2 phones | 2 phones = 19 Total
+1. 1 Cluster (Baseline): 18 nodes
+2. 2 Clusters (1 Host + 2 Members): 3 phones (Host) | 8 phones | 7 phones = 18 Total
+3. 3 Clusters (1 Host + 3 Members): 3 phones (Host) | 5 phones | 5 phones | 5 phones = 18 Total
+4. 4 Clusters (1 Host + 4 Members): 3 phones (Host) | 4 phones | 4 phones | 4 phones | 3 phones = 18 Total
+5. 5 Clusters (1 Host + 5 Members): 3 phones (Host) | 3 phones | 3 phones | 3 phones | 3 phones | 3 phones = 18 Total
+6. 6 Clusters (1 Host + 6 Members): 3 phones (Host) | 3 phones | 3 phones | 3 phones | 2 phones | 2 phones | 2 phones = 18 Total

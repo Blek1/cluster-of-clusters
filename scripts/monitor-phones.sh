@@ -20,7 +20,7 @@ print_dashboard() {
     echo ""
 
     if [ "$NUM_WORKER_CLUSTERS" -eq 1 ]; then
-        export KUBECONFIG=/home/luffy/cluster-d.kubeconfig
+        export KUBECONFIG=/home/luffy/cluster-d-new.kubeconfig
         
         echo "[ PHYSICAL PHONE HEALTH ]"
         kubectl get nodes | grep -v "master"

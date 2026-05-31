@@ -16,10 +16,10 @@ MANIFEST="workload-test.yaml"
 if [ "$NUM_WORKER_CLUSTERS" -eq 1 ]; then
     echo "[1/3] Syncing Monolith config via SSH..."
     mkdir -p ~/.kube
-    scp strawhat:/home/luffy/cluster-d.kubeconfig ~/.kube/cluster-d.kubeconfig > /dev/null 2>&1
+    scp strawhat:/home/luffy/cluster-d-new.kubeconfig ~/.kube/cluster-d-new.kubeconfig > /dev/null 2>&1
 
-    export KUBECONFIG=~/.kube/cluster-d.kubeconfig
-    sed -i 's|server: .*|server: https://127.0.0.1:6443|' ~/.kube/cluster-d.kubeconfig || true
+    export KUBECONFIG=~/.kube/cluster-d-new.kubeconfig
+    sed -i 's|server: .*|server: https://127.0.0.1:6443|' ~/.kube/cluster-d-new.kubeconfig || true
 
     echo "[2/3] Generating 500-Pod Workload (No Propagation Policy)..."
     cat <<EOF > "$MANIFEST"
@@ -57,7 +57,7 @@ else
     scp strawhat:/home/luffy/clusters/karmada-apiserver.config ~/.kube/karmada-apiserver.config #> /dev/null 2>&1
 
     export KUBECONFIG=~/.kube/karmada-apiserver.config
-    sed -i 's|server: https://10.0.0.16:32443|server: https://127.0.0.1:32443|' ~/.kube/karmada-apiserver.config || true
+    sed -i 's|server: https://10.0.0.18:32443|server: https://127.0.0.1:32443|' ~/.kube/karmada-apiserver.config || true
 
     echo "[2/3] Generating 500-Pod Workload with Propagation Policy..."
     cat <<EOF > "$MANIFEST"
@@ -132,7 +132,7 @@ kubectl delete -f "$MANIFEST" > /dev/null 2>&1
 
 echo " EXPERIMENT COMPLETE!"
 if [ "$NUM_WORKER_CLUSTERS" -eq 1 ]; then
-    echo " Total Pod Rollout Latency for Baseline (1x19): $LATENCY seconds"
+    echo " Total Pod Rollout Latency for Baseline (1x18): $LATENCY seconds"
 else
     echo " Total Pod Rollout Latency for $NUM_WORKER_CLUSTERS member clusters: $LATENCY seconds"
 fi

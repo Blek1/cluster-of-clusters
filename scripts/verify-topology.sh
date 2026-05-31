@@ -12,8 +12,8 @@ if [ -z "$NUM_WORKER_CLUSTERS" ]; then
 fi
 
 if [ "$NUM_WORKER_CLUSTERS" -eq 1 ]; then
-    echo "=== Verifying Baseline (1x19) ==="
-    export KUBECONFIG=/home/luffy/cluster-d.kubeconfig
+    echo "=== Verifying Baseline (1x18) ==="
+    export KUBECONFIG=/home/luffy/cluster-d-new.kubeconfig
     
     echo "-> Checking Host Nodes..."
     kubectl get nodes
@@ -48,5 +48,5 @@ else
     done
     
     echo "[3] Checking Host Cluster (Remaining Nodes)..."
-    kubectl --kubeconfig=/home/luffy/cluster-d.kubeconfig get nodes
+    kubectl --kubeconfig=/home/luffy/cluster-d-new.kubeconfig get nodes
 fi

@@ -1,5 +1,5 @@
 #!/bin/bash
-export KUBECONFIG=/home/luffy/cluster-d.kubeconfig
+export KUBECONFIG=/home/luffy/cluster-d-new.kubeconfig
 
 echo "Checking node readiness..."
 kubectl get nodes -L switch,image,reservation -o wide
