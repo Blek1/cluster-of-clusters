@@ -1,109 +1,60 @@
-# Benchmarking 
+# kwok-test
+This project is a stress testing framework for the Karmada control plane using KWOK (Kubernetes Without Kubelet) to simulate member cluster nodes and ClusterLoader2 to drive high volume workloads against a Karmada API server.
 
-USE = utilization, saturation, errors 
+# Overview
+ClusterLoader2 is pointed at the Karmada control plane to generate large volumes of Deployment and PropagationPolicy objects. Karmada propagates these to KWOK-backed member clusters, where fake nodes instantly mark pods as Running — enabling pure control-plane benchmarking without real compute.
 
-Utilization  → CPU %, memory %  
-Saturation   → pods being throttled, OOM pressure
-Errors       → node not ready, kubelet errors
+## Repo Structure 
+```
+kwok-test/
+├── bin/                        # Helper binaries 
+├── configs/
+│   └── clusterloader/          # ClusterLoader2 test configs
+├── dashboards/                 # Grafana / monitoring dashboard definitions
+├── kind/                       # kind cluster configs (host + member cluster bootstrap)
+├── observ/                     # Observability stack (Prometheus, metrics scraping, etc.)
+├── perf-tests/                 # kubernetes/perf-tests submodule (contains ClusterLoader2)
+├── scripts/                    # Automation: cluster bootstrap, run tests, teardown
+├── .gitignore
+└── README.md
+```
 
+## Key Files 
+| File | Purpose |
+|------|---------|
+| `configs/clusterloader/config.yaml` | Top-level test definition — namespace count, deployments per namespace, QPS |
+| `configs/clusterloader/deployment.yaml` | Deployment object template used by ClusterLoader2 |
+| `configs/clusterloader/policy.yaml` | PropagationPolicy template that controls which member clusters receive workloads |
 
-Utilization  → how much of each cluster's capacity is used?
-Saturation   → is Karmada delaying propagation?
-Errors       → clusters showing NotReady, join failures
-(https://karmada.io/blog/2022/10/26/test-report/)
-Federation Layer Benchmarking Questions to Answer: 
+| Script | Purpose |
+|--------|---------|
+| `scripts/setup-cluster.sh` | auto detects host IP, spins up `host-01` kind cluster, initializes Karmada via `karmadactl init`, creates `MEMBER_COUNT` member clusters with unique pod/service subnets, installs KWOK controller + 1000 fake nodes per member, then calls `setup-observability.sh` |
+| `scripts/setup-observability.sh` | Deploys Prometheus to `kind-host-01` (fetches bearer token from Karmada apiserver, injects into prometheus config), deploys Grafana via Helm, imports dashboard JSONs from `configs/dashboards/` |
+| `scripts/cluster-loader.sh` | Runs ClusterLoader2 against the Karmada apiserver using `configs/clusterloader/config.yaml`, prints deployment + ResourceBinding counts on completion, saves JUnit report to `perf-tests/clusterloader2/junit.xml` |
+| `scripts/verify.sh` | Sanity checks full stack: kind clusters exist, Karmada control plane pods are Running, member clusters are Ready in Karmada, KWOK controller is Running in each member, fake nodes are present |
+| `scripts/cleanup.sh` | Tears everything down: deletes all kind clusters removes KWOK clusters via `kwokctl`
 
-Utilization:
-What is the baseline resource utilization across all 3 clusters at idle?
-How does utilization distribute when a workload is deployed via Karmada vs directly to a cluster?
-Is resource usage evenly distributed across worker nodes within each cluster?
+### Run order
 
-Saturation:
-At what utilization % does pod scheduling latency start increasing?
-How long does it take Karmada to detect a cluster is under pressure?
-Does adding more parallelism help or does it saturate the API server first?
+```bash
+# 1. Bootstrap everything (host cluster, Karmada, member clusters, KWOK, observability)
+MEMBER_COUNT=3 ./scripts/setup-cluster.sh
+#  The IP address in host-config.yaml in line 20 needs to be dynamically changed, the host IP server address changes bewteen runs. The Host IP address is printed out at the start of the cluster setup script each time. 
 
-Errors:
-What happens to inflight workloads when a member cluster goes down?
-Does Karmada failover automatically or does it require manual intervention?
+# 2. Verify the stack is healthy before running load
+./scripts/verify.sh
 
-Federation specific:
-What is Karmada's propagation latency at low vs high load?
-If cluster-01 and cluster-02 have different resource capacities, does Karmada weight distribution accordingly?
-What is the overhead of Karmada itself, how much CPU/memory does the control plane consume?
+# 3. Run the ClusterLoader2 benchmark
+./scripts/cluster-loader.sh
 
+# 4. Tear down when done
+./scripts/cleanup.sh
+```
 
-## SLOs and SLIs 
+Observability is set up automatically at the end of `setup-cluster.sh`. To re-deploy it independently:
 
-Kubernetes Official SLOs (hard guarantees):
-API mutating call latency (create, update, delete) ≤ 1s at 99th percentile
-API read-only call latency ≤ 1s (single resource) or ≤ 30s (namespace/cluster scope) at 99th percentile
-Pod startup latency ≤ 5s at 99th percentile (stateless pods, excludes image pull)
+```bash
+./scripts/setup-observability.sh
+```
 
-Kubernetes WIP SLIs (measured but no hard guarantee yet):
-Stateful pod startup latency
-Load balancer programming latency
-DNS programming latency
-In-cluster network latency (pod-to-pod ping)
-DNS lookup latency
-TCP first packet latency
-Network throughput
-
-Karmada SLIs/SLOs (2022 report):
-Karmada measures scalability across 3 dimensions:
-
-Number of clusters
-Number of API objects/resources on the control plane
-Size of individual clusters
-
-The specific SLIs Karmada tracks:
-
-Resource distribution latency — how long from applying a workload to Karmada until it appears on member clusters
-API server request latency on the Karmada control plane
-Control plane resource usage (CPU/memory of karmada-apiserver, karmada-controller-manager, karmada-scheduler)
-Cluster sync latency — how long for member cluster status to reflect in Karmada
-
-
-** Why isn't CPU/node consumption measure? ** 
-
-They are precise and well-defined
-It's extremely important to ensure that both users and us have exactly the same understanding of what we guarantee.
-They are consistent with each other
-This is mostly about using the same terminology, same concepts, etc.
-They are user-oriented
-First, the SLOs we provide need to be things users really care about. Second, they need to be understandable for people not familiar with the system internals (e.g. their formulation can't depend on some arcane knowledge or implementation details of the system).
-They are testable
-Ideally, SLIs/SLOs should be measurable in all running clusters, but if measuring some metrics isn't possible or would be extremely expensive (e.g. in terms of resource overhead for the system), benchmarks sometimes may be enough. That means that not every SLO may be translatable to SLA (Service Level Agreement).
-
-Machine agnostic really 
-
-
-## Final Metrics 
-
-Layer 1 — Node metrics:
-
-CPU utilization %
-Memory utilization %
-Network throughput (bytes in/out per second)
-Network packet loss/error rate
-Disk I/O (read/write bytes per second)
-Disk latency
-
-Layer 2 — Cluster metrics: (pod also kinda done in here) 
-
-Pod startup latency (P99)
-API server request latency (P99)
-Pods pending vs running ratio
-Container restart rate
-Scheduling throughput (pods/sec)
-
-Layer 3 — Karmada metrics:
-
-End-to-end scheduling latency (P99)
-Propagation latency to member clusters (P99)
-Scheduling success rate
-Unschedulable bindings count
-Karmada control plane CPU/memory overhead
-Member cluster ready state
-
-
+Grafana will be available at `http://localhost:3000` (admin / admin) while the port-forward is active. The IP address in host-config.yaml in line 20 needs to be dynamically changed, the host IP server address changes bewteen runs. The Host IP address is printed out at the start of the cluster setup script each time. 
