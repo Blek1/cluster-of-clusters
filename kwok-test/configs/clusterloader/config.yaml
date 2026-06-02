@@ -1,39 +1,35 @@
-# configs/clusterloader2/config.yaml
-name: karmada-perf-test
+name: test
 
 namespace:
-  number: 10                        # create 10 namespaces
-  deleteAutomanagedNamespaces: false # keep them after test finishes
-
+  number: 10
+  deleteAutomanagedNamespaces: false
+  
 tuningSets:
-- name: SlowQPS
+- name: Uniformtinyqps
   qpsLoad:
-    qps: 20    # 1 object every 10 sec
-- name: FastQPS
+    qps: 10        # bumped from 0.5
+- name: Uniform1qps
   qpsLoad:
-    qps: 1      # 1 object per second
+    qps: 1
 
 steps:
-- name: Create Deployments and PropagationPolicies
+- name: Create deployment 
   phases:
-  # Phase 1 — create deployments slowly
   - namespaceRange:
       min: 1
       max: 10
-    replicasPerNamespace: 1000        # 20 deployments per namespace = 200 total
-    tuningSet: SlowQPS
+    replicasPerNamespace: 1000   # <-- CHANGE THIS each run (100, 500, 1000)
+    tuningSet: Uniformtinyqps
     objectBundle:
     - basename: test-deployment
       objectTemplatePath: "deployment.yaml"
       templateFillMap:
-        Replicas: 10               # 100 pods per deployment
-
-  # Phase 2 — create propagation policies faster
+        Replicas: 10
   - namespaceRange:
       min: 1
       max: 10
-    replicasPerNamespace: 1         # 1 policy per namespace covers all deployments in it
-    tuningSet: FastQPS
+    replicasPerNamespace: 1
+    tuningSet: Uniform1qps
     objectBundle:
     - basename: test-policy
       objectTemplatePath: "policy.yaml"

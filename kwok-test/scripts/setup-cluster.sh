@@ -7,7 +7,7 @@ KARMADA_DIR="$HOME/.karmada"
 KARMADA_KUBECONFIG="$KARMADA_DIR/karmada-apiserver.config"
 HOST_KUBECONFIG="$HOME/.kube/config"
 HOST_IPADDRESS="${HOST_IPADDRESS:-}"
-NODE_MEMORY_LIMIT="1.5g"
+NODE_MEMORY_LIMIT="4g"
 TMP_CONFIG_DIR=$(mktemp -d)
 
 
@@ -154,7 +154,7 @@ kubectl --kubeconfig=$HOME/.karmada/karmada-apiserver.config get clusters
 
 
 echo "Spinning up MEMBER KIND Clusters..."
-MEMBER_COUNT="${MEMBER_COUNT:-3}"
+MEMBER_COUNT="${MEMBER_COUNT:-1}"
 for i in $(seq 1 "${MEMBER_COUNT}"); do
   create_member_cluster "${i}"
 done
@@ -173,14 +173,14 @@ echo "Spinning up KWOK in each member..."
 for i in $(seq 1 "${MEMBER_COUNT}"); do
   name="member-0${i}"
   kubectl config use-context "kind-${name}"
-
-  # static — just apply it
   kubectl apply -f "${ROOT_DIR}/configs/kind/kwok-controller.yaml"
 
-  # templated — loop and swap NODE_INDEX
-  for n in $(seq 0 99); do
-    sed "s/NODE_INDEX/${n}/g" \
-      "${ROOT_DIR}/configs/kind/kwok-node-template.yaml" \
-      | kubectl apply -f -
-  done
+  # generate all nodes into one file, apply once
+  for n in $(seq 0 999); do
+    sed "s/NODE_INDEX/${n}/g" "${ROOT_DIR}/configs/kind/kwok-node-template.yaml"
+    echo "---"
+  done | kubectl apply -f -
 done
+
+echo "Setting up observability..."
+${ROOT_DIR}/scripts/setup-observability.sh

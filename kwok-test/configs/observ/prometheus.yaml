@@ -22,7 +22,6 @@ data:
         regex: karmada-system;karmada-scheduler
       - target_label: __address__
         source_labels: [__address__]
-        regex: '(.*)'
         replacement: '${1}:10351'
         action: replace
 
@@ -38,7 +37,6 @@ data:
         regex: karmada-system;karmada-controller-manager
       - target_label: __address__
         source_labels: [__address__]
-        regex: '(.*)'
         replacement: '${1}:8080'
         action: replace
 

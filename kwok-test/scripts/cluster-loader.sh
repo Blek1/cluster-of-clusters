@@ -29,3 +29,5 @@ kubectl --kubeconfig=$KARMADA_KUBECONFIG get resourcebindings -A --no-headers | 
 echo ""
 echo "   JUnit report saved to:"
 echo "   ${ROOT_DIR}/perf-tests/clusterloader2/junit.xml"
+
+say "clusterloader finished"
