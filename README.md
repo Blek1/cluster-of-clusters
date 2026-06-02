@@ -8,8 +8,7 @@ ClusterLoader2 is pointed at the Karmada control plane to generate large volumes
 ```
 kwok-test/
 ├── bin/                        # Helper binaries 
-├── configs/
-│   └── clusterloader/          # ClusterLoader2 test configs
+├── configs/                    # *.yaml files for CL2, k8s, Karmada
 ├── dashboards/                 # Grafana / monitoring dashboard definitions
 ├── kind/                       # kind cluster configs (host + member cluster bootstrap)
 ├── observ/                     # Observability stack (Prometheus, metrics scraping, etc.)
