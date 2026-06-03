@@ -1,0 +1,35 @@
+# configs/clusterloader2/policy.yaml
+apiVersion: policy.karmada.io/v1alpha1
+kind: PropagationPolicy
+metadata:
+  name: {{.Name}}
+spec:
+  resourceSelectors:
+    - apiVersion: apps/v1
+      kind: Deployment
+      labelSelector:
+        matchLabels:
+          group: test-deployment    # only propagate deployments with this label
+  placement:
+    clusterAffinity:
+      clusterNames:
+        - member-01
+        - member-02
+        - member-03
+    replicaScheduling:
+      replicaDivisionPreference: Weighted
+      replicaSchedulingType: Divided
+      weightPreference:
+        staticClusterWeight:
+          - targetCluster:
+              clusterNames:
+                - member-01
+            weight: 1
+          - targetCluster:
+              clusterNames:
+                - member-02
+            weight: 1
+          - targetCluster:
+              clusterNames:
+                - member-03
+            weight: 1

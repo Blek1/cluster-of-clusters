@@ -1,0 +1,258 @@
+{
+  "title": "Karmada Control Plane — Performance",
+  "uid": "karmada-perf-v1",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-1h", "to": "now" },
+  "annotations": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "title": "API Request Latency p99 — works & resourcebindings (SLI)",
+      "description": "SLI: p99 latency of mutating API calls on Karmada internal propagation objects. SLO target: < 500ms. Spikes here mean Karmada is struggling to process propagation under load.",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.25 },
+              { "color": "red", "value": 0.5 }
+            ]
+          }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(apiserver_request_duration_seconds_bucket{verb!~\"WATCH|GET|LIST\", resource=~\"works|resourcebindings\"}[5m])) by (resource, verb, le))",
+          "legendFormat": "p99 — {{resource}} {{verb}}"
+        },
+        {
+          "expr": "histogram_quantile(0.90, sum(rate(apiserver_request_duration_seconds_bucket{verb!~\"WATCH|GET|LIST\", resource=~\"works|resourcebindings\"}[5m])) by (resource, verb, le))",
+          "legendFormat": "p90 — {{resource}} {{verb}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "API Request Latency p99 — all resources (SLI)",
+      "description": "SLI: p99 latency across all Karmada API resources. SLO target: < 1s for all mutating operations.",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(apiserver_request_duration_seconds_bucket{verb!~\"WATCH|GET|LIST\"}[5m])) by (resource, verb, le))",
+          "legendFormat": "p99 — {{resource}} {{verb}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "API Request Rate — works & resourcebindings",
+      "description": "Requests per second hitting the Karmada API for propagation objects. Correlate with latency panel — high rate + high latency = overload.",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "reqps" } },
+      "targets": [
+        {
+          "expr": "sum(rate(apiserver_request_total{resource=~\"works|resourcebindings\"}[5m])) by (resource, verb)",
+          "legendFormat": "{{resource}} — {{verb}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "API Error Rate (SLO)",
+      "description": "SLO: Error rate should be < 1% of total requests. 4xx = client errors, 5xx = server errors under load.",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "reqps" } },
+      "targets": [
+        {
+          "expr": "sum(rate(apiserver_request_total{code=~\"4..|5..\"}[5m])) by (code, resource)",
+          "legendFormat": "HTTP {{code}} — {{resource}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Controller Manager Work Queue Depth (SLI)",
+      "description": "SLI: Items waiting in controller work queues. SLO: Should stay near 0 at steady state. Sustained high values = controller falling behind propagation load.",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "targets": [
+        {
+          "expr": "workqueue_depth{job=\"karmada-controller-manager\"}",
+          "legendFormat": "{{name}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Controller Queue Processing Rate",
+      "description": "Items processed per second from each controller queue. Low rate + high queue depth = bottleneck.",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 24, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "ops" } },
+      "targets": [
+        {
+          "expr": "sum(rate(workqueue_work_duration_seconds_count{job=\"karmada-controller-manager\"}[5m])) by (name)",
+          "legendFormat": "{{name}}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Controller Queue Latency p99",
+      "description": "p99 time items spend waiting in the controller queue before being processed.",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 24, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(workqueue_queue_duration_seconds_bucket{job=\"karmada-controller-manager\"}[5m])) by (name, le))",
+          "legendFormat": "p99 — {{name}}"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "API Server Health",
+      "description": "1 = UP, 0 = DOWN",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 32, "w": 4, "h": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "1": { "text": "UP", "color": "green" }, "0": { "text": "DOWN", "color": "red" } } }
+          ]
+        }
+      },
+      "targets": [
+        {
+          "expr": "up{job=\"karmada-apiserver\"}",
+          "legendFormat": "karmada-apiserver"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Total API Requests (last 5m)",
+      "type": "stat",
+      "gridPos": { "x": 4, "y": 32, "w": 4, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "targets": [
+        {
+          "expr": "sum(increase(apiserver_request_total[5m]))",
+          "legendFormat": "Requests"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "Total Errors (last 5m)",
+      "type": "stat",
+      "gridPos": { "x": 8, "y": 32, "w": 4, "h": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(increase(apiserver_request_total{code=~\"5..\"}[5m]))",
+          "legendFormat": "5xx Errors"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "title": "p99 Latency — works (last 5m)",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 32, "w": 4, "h": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.25 },
+              { "color": "red", "value": 0.5 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(apiserver_request_duration_seconds_bucket{verb!~\"WATCH|GET|LIST\", resource=\"works\"}[5m])) by (le))",
+          "legendFormat": "works p99"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "title": "p99 Latency — resourcebindings (last 5m)",
+      "type": "stat",
+      "gridPos": { "x": 16, "y": 32, "w": 4, "h": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.25 },
+              { "color": "red", "value": 0.5 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(apiserver_request_duration_seconds_bucket{verb!~\"WATCH|GET|LIST\", resource=\"resourcebindings\"}[5m])) by (le))",
+          "legendFormat": "resourcebindings p99"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "title": "Max Queue Depth",
+      "type": "stat",
+      "gridPos": { "x": 20, "y": 32, "w": 4, "h": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "red", "value": 50 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "max(workqueue_depth{job=\"karmada-controller-manager\"})",
+          "legendFormat": "Max queue depth"
+        }
+      ]
+    }
+  ]
+}
