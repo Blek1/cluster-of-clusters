@@ -2,7 +2,7 @@
 set -e
 
 NUM_WORKERS=70 # 65 max so far
-CONFIG_FILE="../configs/kind/mega-cluster.yaml"
+CONFIG_FILE="../../configs/kind/mega-cluster.yaml"
 LOG_DIR="./logs/mega-cluster"
 
 echo "Generating Mega Cluster with 1 Control Plane & $NUM_WORKERS Workers..."

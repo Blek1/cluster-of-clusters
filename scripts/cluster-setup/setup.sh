@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail # stop script immediately if anything fails
 
-CONFIGS_DIR="$(dirname "$0")/../configs/kind"
+CONFIGS_DIR="$(dirname "$0")/../../configs/kind"
 
 clusters=$(kind get clusters 2>/dev/null)
 

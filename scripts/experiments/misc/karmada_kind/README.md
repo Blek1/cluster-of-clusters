@@ -53,29 +53,6 @@ Bootstrap will automatically:
 
 The fetched upstream source lives in `./karmada/` locally but is ignored by Git.
 
-## Prerequisites
-
-You need these tools installed locally:
-
-- Docker
-- kind
-- kubectl
-- git
-- Go
-- make
-- python3
-
-Quick check:
-
-```bash
-docker version
-kind version
-kubectl version --client
-git --version
-go version
-make --version
-python3 --version
-```
 
 ## Quick start
 

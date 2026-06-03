@@ -9,8 +9,8 @@ if [ "${1}" == "--scale" ]; then
     NODES=${2:-20}
 fi
 
-NODE_TEMPLATE="$(dirname "$0")/../manifests/kwok/node-template.yaml"
-DASHBOARD_SRC_DIR="$(dirname "$0")/../configs/prometheus-grafana/dashboards"
+NODE_TEMPLATE="$(dirname "$0")/../../manifests/kwok/node-template.yaml"
+DASHBOARD_SRC_DIR="$(dirname "$0")/../../configs/prometheus-grafana/dashboards"
 
 for cmd in kwokctl kubectl docker; do
     if ! command -v $cmd &> /dev/null; then

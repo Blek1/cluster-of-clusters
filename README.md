@@ -1,63 +1,49 @@
-# Cluster-of-Clusters
+# cluster-of-clusters
 
-This repository contains the infrastructure-as-code, automation scripts, and configuration files for the UCSD CSE 145/237D Junkyard Project. 
+Infrastructure-as-code, automation scripts, and configurations for the UCSD CSE 145/237D Junkyard Project.
 
-The goal of this project is to experimentally determine the optimal architecture for scaling large networks of repurposed smartphones. We utilize Kubernetes in Docker (Kind) for rapid local topology simulation, Karmada for multi-cluster orchestration, and Admiralty for workload federation, before validating our findings on physical Pixel hardware.
+The goal is to experimentally determine the optimal architecture for scaling large networks of repurposed smartphones. We use Kubernetes in Docker (Kind) for rapid local topology simulation, Karmada for multi-cluster orchestration, and KWOK for scaling, before validating findings on physical Pixel hardware.
+
+## Repository Layout
+
+```
+scripts/
+  cluster-setup/          Kind cluster creation and teardown
+  karmada-orchestration/  Karmada control plane and KWOK fake-node setup
+  observability/          Prometheus/Grafana monitoring and dashboards
+  topology-testing/       Kind-based topology experiments
+  physical-pixels/        Physical Pixel phone experiments
+  stress-testing/         Simple Kind workload stress tests
+  kwok-testing/           KWOK + ClusterLoader2 stress framework
+  experiments/            Misc experiments and prototypes
+
+configs/
+  kind/                   Kind cluster configuration files
+  prometheus-grafana/     Dashboard JSONs
+  karmada/                Karmada manifests and configs
+
+manifests/                Kubernetes workload and template manifests
+docs/                     Meeting notes and architecture docs
+```
 
 ## Prerequisites
 
-### Standard Packages
+* [Docker](https://docs.docker.com/get-docker/) — container runtime
+* [kubectl](https://kubernetes.io/docs/tasks/tools/) — Kubernetes CLI
+* [kind](https://kind.sigs.k8s.io/) — local Kubernetes clusters
+* [Helm](https://helm.sh/docs/intro/install/) — Kubernetes package manager
+* [karmadactl](https://karmada.io/docs/) — Karmada CLI
+* [kwokctl](https://kwok.sigs.k8s.io/) — KWOK cluster manager
 
-Before cloning and running this project, ensure you have the following system-level tools installed and configured on your host machine. 
+## Quick Start (Kind + Karmada)
 
-* **[Docker](https://docs.docker.com/get-docker/)**: The container runtime (Ensure the Docker daemon is actively running).
-* **[kubectl](https://kubernetes.io/docs/tasks/tools/)**: The Kubernetes command-line tool.
-* **[kind](https://kind.sigs.k8s.io/)**: For spinning up local Kubernetes clusters.
-* **[Helm](https://helm.sh/docs/intro/install/)**: The Kubernetes package manager.
-* **[uv](https://github.com/astral-sh/uv)**: A Python package and environment manager.
+Run in order from `scripts/` subdirectories:
 
-### Karmada CLI
-Karmada is a specialized CNCF tool and is not hosted in standard package managers. You must manually download and install the binary to your system path.
-
-Run the following commands in your terminal to install the latest AMD64 Linux release:
-```bash
-curl -s -L "[https://github.com/karmada-io/karmada/releases/latest/download/karmadactl-linux-amd64.tgz](https://github.com/karmada-io/karmada/releases/latest/download/karmadactl-linux-amd64.tgz)" | tar -xz
-sudo mv karmadactl /usr/local/bin/
-```
-
-Verify installation by running `karmadactl version`
-
-## Quick Start: Infrastructure Setup
-This project uses a sequence of shell scripts to predictably tear down and rebuild the simulated multi-cluster environment. Open your terminal in the root of the repository and execute the scripts in the following order:
-
-1. Create local clusters
-```bash
-./scripts/setup-clusters.sh
-```
-
-2. Initialize & Federate Karmada
-```bash
-./scripts/setup-karmada.sh
-```
-
-3. Setup Metric Observation
-```bash
-./scripts/setup-observability.sh
-```
-
-4. Grafana Dashboard
-```bash
-./scripts/setup-dashboards.sh
-```
-
-Once the scripts are up and running, you can access the Grafana UI locally:
-```bash
-kubectl --context=kind-karmada-host port-forward svc/kube-prometheus-stack-grafana 8080:80 -n monitoring
-```
-
-Navigate to `http://localhost:8080`, username `admin` and password `admin`
-
-To view metrics for worker clusters, you need to add their Prometheus endpoints through the Grafana UI using the URL.
+1. `scripts/cluster-setup/setup.sh` — create clusters from `configs/kind/*.yaml`
+2. `scripts/karmada-orchestration/setup-karmada.sh` — init Karmada, join workers
+3. `scripts/observability/setup-observability.sh` — deploy Prometheus/Grafana
+4. `scripts/observability/setup-dashboards.sh` — import dashboards
 
 ## Contributors
-CSE 145/237D Junkyard Cluster of Clusters: Felicia, Blake, Tahseen, Andre, Afraz
+
+CSE 145/237D Junkyard Cluster of Clusters: Felicia, Blake, Tahseen, Afraz

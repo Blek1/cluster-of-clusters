@@ -1,19 +1,35 @@
 #!/bin/bash
 set -e
 
-NUM_CLUSTERS=$1
-TOTAL_NODES=$2
+NUM_CLUSTERS=${1:-}
+TOTAL_NODES=${2:-}
 
-if [ -z "$NUM_CLUSTERS" ] || [ -z "$TOTAL_NODES" ]; then
+if ! [[ "$NUM_CLUSTERS" =~ ^[1-9][0-9]*$ && "$TOTAL_NODES" =~ ^[1-9][0-9]*$ ]]; then
   echo "Usage: ./test-topology.sh <NUM_CLUSTERS> <TOTAL_WORKER_NODES>"
-  echo "Example: ./test-topology.sh 3 12"
+  echo "Example: ./test-topology.sh 5 12"
   exit 1
 fi
 
-NODES_PER_CLUSTER=$(( TOTAL_NODES / NUM_CLUSTERS ))
+if [ "$TOTAL_NODES" -lt "$NUM_CLUSTERS" ]; then
+  echo "FATAL ERROR: Total worker nodes must be at least the number of clusters."
+  exit 1
+fi
+
+BASE_NODES=$(( TOTAL_NODES / NUM_CLUSTERS ))
+EXTRA_NODES=$(( TOTAL_NODES % NUM_CLUSTERS ))
+NODE_COUNTS=()
+
+for (( i=1; i<=NUM_CLUSTERS; i++ )); do
+    CLUSTER_NODES=$BASE_NODES
+    if [ "$i" -le "$EXTRA_NODES" ]; then
+        CLUSTER_NODES=$(( CLUSTER_NODES + 1 ))
+    fi
+    NODE_COUNTS+=("$CLUSTER_NODES")
+done
 
 echo "Initiating Topology Run"
-echo "Topology: $NUM_CLUSTERS Cluster(s) with $TOTAL_NODES Total Nodes ($NODES_PER_CLUSTER per cluster)"
+echo "Topology: $NUM_CLUSTERS Cluster(s) with $TOTAL_NODES Total Worker Nodes"
+echo "Worker node distribution: ${NODE_COUNTS[*]}"
 
 echo "[0/8] Checking required dependencies..."
 DEPENDENCIES=("docker" "kind" "kubectl" "helm" "karmadactl")
@@ -28,30 +44,30 @@ done
 echo "[1/8] Cleaning up previous infrastructure..."
 kind delete clusters --all > /dev/null 2>&1 || true
 docker network prune -f > /dev/null 2>&1
-rm -rf "$HOME/.karmada" ../configs/kind/*.yaml ../configs/manifests/tests/*.yaml ../configs/karmada/*.yaml ../configs/prometheus-grafana/*.yaml
+rm -rf "$HOME/.karmada" ../../configs/kind/*.yaml ../../configs/manifests/tests/*.yaml ../../configs/karmada/*.yaml ../../configs/prometheus-grafana/*.yaml
 
-mkdir -p ../configs/kind
-mkdir -p ../configs/karmada
-mkdir -p ../configs/prometheus-grafana
-mkdir -p ../manifests/tests
+mkdir -p ../../configs/kind
+mkdir -p ../../configs/karmada
+mkdir -p ../../configs/prometheus-grafana
+mkdir -p ../../manifests/tests
 
 echo "[2/8] Provisioning Kubernetes Architecture..."
 if [ "$NUM_CLUSTERS" -eq 1 ]; then
-    cat <<EOF > "../configs/kind/single-config.yaml"
+    cat <<EOF > "../../configs/kind/single-config.yaml"
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 nodes:
   - role: control-plane
 EOF
-    for i in $(seq 1 $TOTAL_NODES); do echo "  - role: worker" >> "../configs/kind/single-config.yaml"; done
-    kind create cluster --name single-cluster --config ../configs/kind/single-config.yaml
+    for i in $(seq 1 $TOTAL_NODES); do echo "  - role: worker" >> "../../configs/kind/single-config.yaml"; done
+    kind create cluster --name single-cluster --config ../../configs/kind/single-config.yaml
     HOST_CONTEXT="kind-single-cluster"
 else
     kind create cluster --name karmada-host
     HOST_CONTEXT="kind-karmada-host"
 
     for i in $(seq 1 $NUM_CLUSTERS); do
-        cat <<EOF > "../configs/kind/worker-${i}-config.yaml"
+        cat <<EOF > "../../configs/kind/worker-${i}-config.yaml"
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 networking:
@@ -60,8 +76,10 @@ networking:
 nodes:
   - role: control-plane
 EOF
-        for w in $(seq 1 $NODES_PER_CLUSTER); do echo "  - role: worker" >> "../configs/kind/worker-${i}-config.yaml"; done
-        kind create cluster --name worker-$i --config "../configs/kind/worker-${i}-config.yaml"
+        CLUSTER_NODES=${NODE_COUNTS[$(( i - 1 ))]}
+        for (( w=1; w<=CLUSTER_NODES; w++ )); do echo "  - role: worker" >> "../../configs/kind/worker-${i}-config.yaml"; done
+        echo "Creating worker-$i with $CLUSTER_NODES worker node(s)..."
+        kind create cluster --name worker-$i --config "../../configs/kind/worker-${i}-config.yaml"
     done
 fi
 
@@ -69,20 +87,16 @@ if [ "$NUM_CLUSTERS" -gt 1 ]; then
     echo "[3/8] Initializing Karmada Federation..."
     KARMADA_DIR="$HOME/.karmada"
     kubectl config use-context $HOST_CONTEXT
-    karmadactl init --karmada-data="$KARMADA_DIR" --karmada-pki="$KARMADA_DIR/pki" #> /dev/null 2>&1
-    sleep 30 # buffer for api
+    karmadactl init --karmada-data="$KARMADA_DIR" --karmada-pki="$KARMADA_DIR/pki"
+    sleep 30
     for i in $(seq 1 $NUM_CLUSTERS); do
-        # extract internal docker IP of the worker cluster
         WORKER_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' worker-${i}-control-plane)
 
-        # isolate kubeconfig for this worker
         kubectl config view --context=kind-worker-$i --minify --flatten > "/tmp/worker-${i}-raw.kubeconfig"
 
-        # translate laptop's localhost IP into the internal Docker network IP
         sed -e "s|127.0.0.1:[0-9]*|$WORKER_IP:6443|g" -e "s|0.0.0.0:[0-9]*|$WORKER_IP:6443|g" "/tmp/worker-${i}-raw.kubeconfig" > "/tmp/worker-${i}.kubeconfig"
 
-        # join karmada using the translated internal config
-        karmadactl join worker-$i --kubeconfig="$KARMADA_DIR/karmada-apiserver.config" --cluster-kubeconfig="/tmp/worker-${i}.kubeconfig" --cluster-context=kind-worker-$i #> /dev/null 2>&1
+        karmadactl join worker-$i --kubeconfig="$KARMADA_DIR/karmada-apiserver.config" --cluster-kubeconfig="/tmp/worker-${i}.kubeconfig" --cluster-context=kind-worker-$i
     done
 else
     echo "[3/8] Single cluster... Bypassing Karmada Federation..."
@@ -112,8 +126,7 @@ fi
 if [ "$NUM_CLUSTERS" -gt 1 ]; then
     echo "[5/8] Deploying Teammate's Secure Karmada Prometheus..."
 
-    # write rbac and secret config
-    cat <<EOF > "../configs/karmada/rbac.yaml"
+    cat <<EOF > "../../configs/karmada/rbac.yaml"
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -165,16 +178,14 @@ metadata:
     kubernetes.io/service-account.name: "prometheus"
 EOF
 
-    # apply rbac to both host cluster and internal karmada cluster
-    kubectl apply --context $HOST_CONTEXT -f "../configs/karmada/rbac.yaml" > /dev/null 2>&1
-    kubectl apply --kubeconfig="$KARMADA_DIR/karmada-apiserver.config" -f "../configs/karmada/rbac.yaml" > /dev/null 2>&1
+    kubectl apply --context $HOST_CONTEXT -f "../../configs/karmada/rbac.yaml" > /dev/null 2>&1
+    kubectl apply --kubeconfig="$KARMADA_DIR/karmada-apiserver.config" -f "../../configs/karmada/rbac.yaml" > /dev/null 2>&1
 
     echo "Waiting for Karmada API to generate token..."
     sleep 5
     KARMADA_TOKEN=$(kubectl get secret prometheus --kubeconfig="$KARMADA_DIR/karmada-apiserver.config" -n karmada-monitoring -o jsonpath='{.data.token}' | base64 -d)
 
-    # write deploy yaml
-    cat <<EOF > "../configs/karmada/deploy.yaml"
+    cat <<EOF > "../../configs/karmada/deploy.yaml"
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -269,11 +280,10 @@ spec:
           name: prometheus-config
 EOF
 
-    # inject token and deploy to the host
-    sed "s/KARMADA_TOKEN_PLACEHOLDER/${KARMADA_TOKEN}/g" "../configs/karmada/deploy.yaml" | kubectl apply --context $HOST_CONTEXT -f - > /dev/null 2>&1
+    sed "s/KARMADA_TOKEN_PLACEHOLDER/${KARMADA_TOKEN}/g" "../../configs/karmada/deploy.yaml" | kubectl apply --context $HOST_CONTEXT -f - > /dev/null 2>&1
 
     echo "[6/8] Auto-Wiring All Data Sources & Dashboards..."
-    DS_FILE="../configs/karmada/datasources.yaml"
+    DS_FILE="../../configs/karmada/datasources.yaml"
     cat <<EOF > "$DS_FILE"
 apiVersion: v1
 kind: ConfigMap
@@ -306,17 +316,11 @@ EOF
     done
 
     kubectl --context=$HOST_CONTEXT apply -f "$DS_FILE" > /dev/null 2>&1
-    
-    # echo "Downloading Karmada dashboards..."
-    # curl -sL https://raw.githubusercontent.com/karmada-io/karmada/master/artifacts/grafana/karmada-apiserver-dashboard.json -o ../configs/prometheus-grafana/apiserver.json
-    # curl -sL https://raw.githubusercontent.com/karmada-io/karmada/master/artifacts/grafana/karmada-controller-manager-dashboard.json -o ../configs/prometheus-grafana/controller.json
-    # curl -sL https://raw.githubusercontent.com/karmada-io/karmada/master/artifacts/grafana/karmada-scheduler-dashboard.json -o ../configs/prometheus-grafana/scheduler.json
-    # these don't really seem to work?
 
-    # inject local dashboards into grafana
+
     kubectl --context=$HOST_CONTEXT create configmap karmada-dashboards \
       --namespace monitoring \
-      --from-file=../configs/prometheus-grafana/ \
+      --from-file=../../configs/prometheus-grafana/ \
       --dry-run=client -o yaml | \
       kubectl --context=$HOST_CONTEXT label --local -f - \
       grafana_dashboard=1 -o yaml | \
@@ -336,7 +340,7 @@ echo "Note: Inside Grafana, look in the 'General' folder for Karmada dashboards.
 read -p "Log into Grafana (admin/admin), prepare your dashboards, and press [Enter] to launch the pods..."
 
 echo "[7/8] Generating and Applying 500-Pod Workload..."
-MANIFEST="../manifests/tests/workload.yaml"
+MANIFEST="../../manifests/tests/workload.yaml"
 
 cat <<EOF > "$MANIFEST"
 apiVersion: apps/v1
@@ -395,19 +399,16 @@ START_TIME=$(date +%s)
 if [ "$NUM_CLUSTERS" -eq 1 ]; then
     kubectl --context=$HOST_CONTEXT rollout status deployment/workload-nginx --timeout=15m
 else
-    # wait for all worker clusters to finish
     for i in $(seq 1 $NUM_CLUSTERS); do
         (
-            # wait for karmada to propagate deployment to worker
             while ! kubectl --context=kind-worker-$i get deployment workload-nginx > /dev/null 2>&1; do
                 sleep 1
             done
 
-            # once it exists, track the actual pod rollout
             kubectl --context=kind-worker-$i rollout status deployment/workload-nginx --timeout=15m
         ) &
     done
-    wait # hold until all background rollout watches finish
+    wait
 fi
 
 END_TIME=$(date +%s)
