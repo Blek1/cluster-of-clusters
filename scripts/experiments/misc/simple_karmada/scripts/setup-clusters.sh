@@ -94,9 +94,9 @@ echo "Using host API server address: ${HOST_IPADDRESS}"
 echo "Target topology: 3 clusters / 6 kind node containers / ${NODE_MEMORY_LIMIT} mem per node"
 
 echo "Spinning up KIND Clusters..."
-create_cluster host-01 ${ROOT_DIR}/configs/karmada/host-config.yaml
-create_cluster cluster-01 ${ROOT_DIR}/configs/karmada/worker01-config.yaml 
-create_cluster cluster-02 ${ROOT_DIR}/configs/karmada/worker02-config.yaml 
+create_cluster host-01 ${ROOT_DIR}/configs/kind/host-config.yaml
+create_cluster cluster-01 ${ROOT_DIR}/configs/kind/worker01-config.yaml
+create_cluster cluster-02 ${ROOT_DIR}/configs/kind/worker02-config.yaml
 
 apply_memory_limit host-01 ${NODE_MEMORY_LIMIT}
 apply_memory_limit cluster-01 ${NODE_MEMORY_LIMIT}

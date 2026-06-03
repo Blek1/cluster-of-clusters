@@ -1,9 +1,9 @@
 #!/bin/bash
-# large-01 20 node KIND cluster for resource limit testing
+# small-01 single KIND cluster for resource limit testing
 set -e
 
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-CLUSTER_NAME="large-01"
+CLUSTER_NAME="small-01"
 NODE_MEMORY_LIMIT="1g"
 TMP_CONFIG_DIR=$(mktemp -d)
 HOST_IPADDRESS="${HOST_IPADDRESS:-}"
@@ -89,7 +89,7 @@ echo "Cleaning up prior..."
 ${ROOT_DIR}/scripts/cleanup.sh
 resolve_host_ip
 echo "Using host API server address: ${HOST_IPADDRESS}"
-echo "Target topology: 1 cluster / 20 kind node containers / ${NODE_MEMORY_LIMIT} mem per node"
+echo "Target topology: 1 cluster / 4 kind node containers / ${NODE_MEMORY_LIMIT} mem per node"
 
 
 echo "Spinning up KIND cluster: ${CLUSTER_NAME}..."

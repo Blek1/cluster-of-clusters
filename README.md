@@ -18,12 +18,13 @@ scripts/
   experiments/            Misc experiments and prototypes
 
 configs/
-  kind/                   Kind cluster configuration files
-  prometheus-grafana/     Dashboard JSONs
-  karmada/                Karmada manifests and configs
+  kind/                   Kind cluster configs for the pipeline (host + worker-1 + worker-2)
+  prometheus-grafana/     Grafana dashboard JSONs
+  karmada/                Karmada manifests and configs (placeholder)
+  automation/ansible/     Ansible automation (placeholder)
 
 manifests/                Kubernetes workload and template manifests
-docs/                     Meeting notes and architecture docs
+docs/                     Meeting notes; docs/architecture/ is a placeholder
 ```
 
 ## Prerequisites
@@ -37,12 +38,56 @@ docs/                     Meeting notes and architecture docs
 
 ## Quick Start (Kind + Karmada)
 
-Run in order from `scripts/` subdirectories:
+This brings up the three-cluster pipeline: a Karmada host cluster (`kind-karmada-host`)
+plus two members (`kind-worker-1`, `kind-worker-2`), with a Prometheus/Grafana stack
+on top. Make sure the [prerequisites](#prerequisites) are installed first.
 
-1. `scripts/cluster-setup/setup.sh` — create clusters from `configs/kind/*.yaml`
-2. `scripts/karmada-orchestration/setup-karmada.sh` — init Karmada, join workers
-3. `scripts/observability/setup-observability.sh` — deploy Prometheus/Grafana
-4. `scripts/observability/setup-dashboards.sh` — import dashboards
+Each script uses paths relative to its own location, so `cd` into the script's
+directory (or call it by full path) before running.
+
+```bash
+# 1. Create the host + worker-1 + worker-2 Kind clusters from configs/kind/*.yaml
+cd scripts/cluster-setup && ./setup.sh
+
+# 2. Initialize the Karmada control plane on kind-karmada-host and join both workers
+cd ../karmada-orchestration && ./setup-karmada.sh
+
+# 3. Deploy kube-prometheus-stack (Prometheus + Grafana) on the host, scraping workers
+cd ../observability && ./setup-observability.sh
+
+# 4. Import the dashboards from configs/prometheus-grafana/dashboards/ into Grafana
+./setup-dashboards.sh
+```
+
+**Verify the federation:**
+
+```bash
+kubectl --kubeconfig "$HOME/.karmada/karmada-apiserver.config" get clusters
+```
+
+**Access Grafana** (port-forward, then open <http://localhost:8080>, login `admin` / `admin`):
+
+```bash
+kubectl --context=kind-karmada-host port-forward \
+  svc/kube-prometheus-stack-grafana 8080:80 -n monitoring
+```
+
+**Tear everything down** when finished:
+
+```bash
+scripts/cluster-setup/teardown.sh   # removes Kind + KWOK clusters and the Grafana container
+```
+
+### Other workflows
+
+The pipeline above is the main path. Other directories under `scripts/` are
+self-contained — see each one's README:
+
+- `scripts/kwok-testing/` — KWOK + ClusterLoader2 control-plane benchmarking
+- `scripts/topology-testing/` — end-to-end topology experiments with rollout-latency measurement
+- `scripts/stress-testing/` — stress-ng workloads against a single Kind cluster
+- `scripts/physical-pixels/` — experiments on physical Pixel hardware
+- `scripts/experiments/` — assorted prototypes and scratch setups
 
 ## Contributors
 

@@ -15,10 +15,22 @@ kwok-testing/
 │   ├── dashboards/        # Grafana dashboards
 │   ├── kind/              # Host + member cluster configs
 │   └── observ/            # Prometheus configs
-├── perf-tests/            # kubernetes/perf-tests submodule
+├── perf-tests/            # kubernetes/perf-tests checkout (clone separately — see Prerequisites)
 ├── scripts/               # Automation scripts
 └── README.md
 ```
+
+## Prerequisites
+
+Before running `cluster-loader.sh`:
+
+- **Clone ClusterLoader2.** `perf-tests/` is not vendored in this repo. Clone the upstream project into it:
+  ```bash
+  git clone https://github.com/kubernetes/perf-tests scripts/kwok-testing/perf-tests
+  ```
+  `cluster-loader.sh` runs `go run cmd/clusterloader.go` from `perf-tests/clusterloader2`, so a working Go toolchain is also required.
+- **Set the Karmada API server IP.** `cluster-loader.sh` has `KARMADA_IP` hardcoded to a LAN address (`192.168.1.153`). Edit it to your host's reachable IP before running.
+- **macOS note.** The script ends with `say "clusterloader finished"` (a macOS spoken notification). On Linux this prints a harmless "command not found"; remove the line if it's noisy.
 
 ## Key Files
 

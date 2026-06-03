@@ -1,0 +1,18 @@
+# Auto-generated kind configs (created by many-clusters.sh / mega-cluster.sh)
+configs/kind/generated/
+
+# Script logs and diagnostic dumps
+scripts/**/logs/
+logs/
+
+# Local kubeconfigs / credentials
+*.kubeconfig
+*-apiserver.config
+.karmada/
+
+# ClusterLoader2 / perf-tests checkout and reports
+scripts/kwok-testing/perf-tests/
+junit*.xml
+
+# OS / editor cruft
+.DS_Store

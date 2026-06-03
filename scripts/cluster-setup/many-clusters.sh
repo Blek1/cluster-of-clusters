@@ -2,7 +2,7 @@
 set -e
 
 NUM_CLUSTERS=50 # 45 max so far
-CONFIG_DIR="../../configs/kind"
+CONFIG_DIR="../../configs/kind/generated"
 
 mkdir -p "$CONFIG_DIR"
 

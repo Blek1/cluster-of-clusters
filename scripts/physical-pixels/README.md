@@ -16,6 +16,19 @@ Our testing pipeline is split into two phases to account for the physical networ
 3. Leave that terminal open. In a new local terminal on your laptop, execute the experiment:
     ./run-experiments.sh 3
 
+## Scripts
+
+All `<N>` arguments are the number of worker (member) clusters to carve from the phone pool.
+
+| Script | Runs on | Purpose |
+|---|---|---|
+| `bootstrap-phones.sh <N>` | jump host | Carve `N` member clusters out of the phone pool, reinstall K3s with unique CIDR blocks, and install Karmada (phase 1). |
+| `run-experiments.sh <N>` | laptop | Pull the Karmada config from the jump host, apply the 500-pod Nginx workload + generated PropagationPolicy, and time the rollout (phase 2). |
+| `verify-topology.sh <N>` | jump host | Check that the live cluster/phone layout matches the expected `N`-cluster topology. |
+| `check-phones.sh` | jump host | Quick health check — node readiness and crashed `containerd` states. |
+| `monitor-phones.sh <N>` | jump host | Live dashboard of phone/cluster status, refreshing every 2 seconds. |
+| `reset-phones.sh` | jump host | Tear down the Karmada federation and host observability stack and fold the phones back into the baseline cluster. |
+
 ## Topologies Tested
 1. 1 Cluster (Baseline): 18 nodes
 2. 2 Clusters (1 Host + 2 Members): 3 phones (Host) | 8 phones | 7 phones = 18 Total

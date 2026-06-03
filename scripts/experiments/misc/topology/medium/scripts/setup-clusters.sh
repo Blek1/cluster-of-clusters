@@ -100,7 +100,7 @@ echo "Target topology: 2 clusters / 10 nodes each / ${CONTROL_PLANE_MEMORY_LIMIT
 echo ""
 echo "==> Spinning up medium KIND clusters..."
 for CLUSTER in "${CLUSTERS[@]}"; do
-  create_cluster "${CLUSTER}" "${ROOT_DIR}/topology/medium/configs/kind/cluster-config.yaml"
+  create_cluster "${CLUSTER}" "${ROOT_DIR}/configs/kind/cluster-config.yaml"
   apply_memory_limits "${CLUSTER}"
 done
 

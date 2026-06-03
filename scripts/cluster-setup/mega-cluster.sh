@@ -2,12 +2,13 @@
 set -e
 
 NUM_WORKERS=70 # 65 max so far
-CONFIG_FILE="../../configs/kind/mega-cluster.yaml"
+CONFIG_DIR="../../configs/kind/generated"
+CONFIG_FILE="$CONFIG_DIR/mega-cluster.yaml"
 LOG_DIR="./logs/mega-cluster"
 
 echo "Generating Mega Cluster with 1 Control Plane & $NUM_WORKERS Workers..."
 
-mkdir -p ../configs/kind
+mkdir -p "$CONFIG_DIR"
 mkdir -p "$LOG_DIR"
 
 cat <<EOF > "$CONFIG_FILE"

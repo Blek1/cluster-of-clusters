@@ -65,6 +65,22 @@ cd karmada-kind
 ./scripts/capture-artifacts.sh
 ```
 
+`./scripts/up.sh` is a one-shot wrapper that runs the cleanup → bootstrap → status →
+capture-artifacts sequence above. To add member-cluster monitoring (Prometheus on
+`member1` and `member2`), run `./scripts/setup-monitoring.sh` after bootstrap.
+
+### Scripts
+
+| Script | Purpose |
+|---|---|
+| `up.sh` | One-shot: cleanup → bootstrap → status → capture-artifacts |
+| `bootstrap-karmada.sh` | Fetch pinned upstream Karmada, create clusters, deploy + join members |
+| `ensure-karmada-repo.sh` | Fetch/pin the upstream Karmada checkout (called by bootstrap) |
+| `setup-monitoring.sh` | Install Prometheus on the member clusters |
+| `status.sh` | Report cluster and Karmada health |
+| `capture-artifacts.sh` | Save proof bundles to `./artifacts/` |
+| `cleanup.sh` | Remove clusters and generated state (`CLEAN_KARMADA_SOURCE=true` also drops `./karmada/`) |
+
 ## Key environment variables
 
 - `HOST_IPADDRESS` — override the detected host IP for kind API server exposure
