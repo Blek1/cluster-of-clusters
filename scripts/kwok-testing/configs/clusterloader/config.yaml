@@ -1,0 +1,35 @@
+name: test
+
+namespace:
+  number: 10
+  deleteAutomanagedNamespaces: false
+  
+tuningSets:
+- name: Uniformtinyqps
+  qpsLoad:
+    qps: 10        # bumped from 0.5
+- name: Uniform1qps
+  qpsLoad:
+    qps: 1
+
+steps:
+- name: Create deployment 
+  phases:
+  - namespaceRange:
+      min: 1
+      max: 10
+    replicasPerNamespace: 1000   # <-- CHANGE THIS each run (100, 500, 1000)
+    tuningSet: Uniformtinyqps
+    objectBundle:
+    - basename: test-deployment
+      objectTemplatePath: "deployment.yaml"
+      templateFillMap:
+        Replicas: 10
+  - namespaceRange:
+      min: 1
+      max: 10
+    replicasPerNamespace: 1
+    tuningSet: Uniform1qps
+    objectBundle:
+    - basename: test-policy
+      objectTemplatePath: "policy.yaml"

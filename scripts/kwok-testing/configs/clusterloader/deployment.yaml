@@ -1,0 +1,37 @@
+# configs/clusterloader2/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{.Name}}        # ClusterLoader2 fills this in automatically
+  labels:
+    group: test-deployment
+spec:
+  replicas: {{.Replicas}} # comes from templateFillMap in config.yaml (100)
+  selector:
+    matchLabels:
+      app: {{.Name}}
+  template:
+    metadata:
+      labels:
+        app: {{.Name}}
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: type
+                    operator: In
+                    values:
+                      - kwok          # only schedule onto KWOK fake nodes
+      tolerations:
+        - key: "kwok.x-k8s.io/node"
+          operator: "Exists"
+          effect: "NoSchedule"        # tolerate the taint KWOK puts on fake nodes
+      containers:
+        - name: {{.Name}}
+          image: fake-image:latest    # doesn't matter, KWOK never pulls it
+          resources:
+            requests:
+              cpu: "10m"              # tiny request so pods fit on fake nodes easily
+              memory: "16Mi"
