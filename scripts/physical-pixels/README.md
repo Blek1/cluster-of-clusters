@@ -11,7 +11,7 @@ Our testing pipeline is split into two phases to account for the physical networ
     ssh -L 6443:10.0.0.16:6443 -L 32443:10.0.0.16:32443 straw-hat
 
 2. Run the bootstrap script on the jump host:
-    ./bootstrap-phones.sh 3 15 (Example: 3 clusters, 5 nodes each)
+    ./bootstrap-phones.sh 3
 
 3. Leave that terminal open. In a new local terminal on your laptop, execute the experiment:
     ./run-experiments.sh 3
