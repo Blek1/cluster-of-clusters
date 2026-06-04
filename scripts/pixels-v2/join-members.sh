@@ -22,10 +22,12 @@ for i in $(seq 1 "$N"); do
 
   log "joining $cluster"
   # Idempotent: drop any stale registration, then join.
-  karmadactl unjoin "$cluster" --karmada-kubeconfig "$KARMADA_KUBECONFIG" \
+  # The Karmada apiserver config is the GLOBAL --kubeconfig flag (there is no
+  # --karmada-kubeconfig); --cluster-kubeconfig points at the member's config.
+  karmadactl unjoin "$cluster" --kubeconfig "$KARMADA_KUBECONFIG" \
     --cluster-kubeconfig "$kubeconfig" >/dev/null 2>&1 || true
   karmadactl join "$cluster" \
-    --karmada-kubeconfig "$KARMADA_KUBECONFIG" \
+    --kubeconfig "$KARMADA_KUBECONFIG" \
     --cluster-kubeconfig "$kubeconfig"
 done
 

@@ -25,9 +25,10 @@ PHONE_SWITCH=(1 1 1 1 1 1 1 1 1 1 1 1 2 2 2 2 2 2 2)
 # Roles
 # ---------------------------------------------------------------------------
 # The Karmada host cluster is a SINGLE phone (see README — "co-locate the whole
-# control plane on one dedicated node"). We reuse pf-006's existing Cluster D
-# K3s server as that host, so the host phone is never reinstalled. Every other
-# phone is a member-pool phone, carved into N member clusters by subdivide.sh.
+# control plane on one dedicated node"). pf-006 is that host AND the Cluster D
+# baseline server. build-clusterd.sh rebuilds it from scratch onto /userdata
+# (see K3S_DATA_DIR) so the run carries no one-time hand-provisioned state. Every
+# other phone is a member-pool phone, carved into N clusters by subdivide.sh.
 HOST_NAME="pf-006"
 HOST_IP="10.0.0.16"
 
@@ -37,6 +38,15 @@ HOST_IP="10.0.0.16"
 PHONE_USER="kalm"
 PHONE_PASS="0000"          # documented fleet password; used via sshpass + sudo -S
 ASSETS="/userdata/cluster-d-assets"   # durable per-phone assets (survive reboot)
+
+# K3s stores its ENTIRE data dir (containerd image cache, kubelet, server state)
+# here instead of the default /var/lib/rancher/k3s. This is the structural fix
+# for the DiskPressure that black-holed the Karmada control plane: docs.md
+# gotcha #6 says the phone root partition is only 3.9 GB and any image cache
+# belongs on /userdata (~225 GB). Raymond set the same precedent for buildah
+# (/userdata/containers/storage). Passed to every install as --data-dir; the
+# server node-token therefore lives under ${K3S_DATA_DIR}/server, not /var/lib.
+K3S_DATA_DIR="/userdata/k3s"
 
 # Local registry (images already mirrored here, e.g. nginx:alpine).
 REGISTRY="10.0.0.1:30500"
@@ -70,11 +80,15 @@ ETCD_RAM_SIZE="2G"          # etcd needs <100MB; 2G cap is safe vs ~9GB free RAM
 # Karmada version pin. The welcome packet stresses controlling your own pin
 # (Parth pinned a commit for kind). Confirm the tag exists before a real run:
 #   curl -s https://api.github.com/repos/karmada-io/karmada/releases | grep tag_name
-KARMADA_VERSION="${KARMADA_VERSION:-v1.12.0}"
+KARMADA_VERSION="${KARMADA_VERSION:-v1.14.2}"
 
 # ---------------------------------------------------------------------------
 # CIDR allocation — reserved table from docs.md (addendum, 5 sub-cluster slots)
 # ---------------------------------------------------------------------------
+# Cluster D's own reserved CIDRs (reserved table, docs.md). build-clusterd.sh
+# installs the pf-006 baseline server with these; members use member_*_cidr.
+HOST_POD_CIDR="10.48.0.0/16"
+HOST_SVC_CIDR="10.49.0.0/16"
 # Cluster D (host) is 10.48.0.0/16 / 10.49.0.0/16. Member i (1-based) gets
 # pod=10.(48+2i).0.0/16, svc=10.(49+2i).0.0/16 -> #1=10.50/10.51 ... #5=10.58/10.59.
 # This formula reproduces the official reserved table; do not invent new ranges.

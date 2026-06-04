@@ -70,7 +70,22 @@ karmadactl init \
 
 [ -f "$KARMADA_KUBECONFIG" ] || die "karmadactl init finished but $KARMADA_KUBECONFIG is missing"
 
-step 5 "Karmada control plane ready."
+# --- readiness gate ---------------------------------------------------------
+# karmadactl init prints its success banner even when components time out (it
+# did exactly that when pf-006 hit DiskPressure and scheduler/controller-manager/
+# webhook stayed Pending). Don't trust the banner: block until every component is
+# actually Available, and on failure dump the node taints + pending pods so the
+# real cause is visible immediately instead of after a failed join.
+step 5 "Verifying all karmada-system components are Available..."
+if ! kd -n karmada-system wait --for=condition=Available --timeout=300s deploy --all; then
+  log "Control-plane components did not all become Available. Diagnostics:"
+  kd describe node "$HOST_NAME" | grep -iA2 'Taints:' || true
+  kd -n karmada-system get pods -o wide || true
+  kd -n karmada-system get events --sort-by=.lastTimestamp 2>/dev/null | tail -15 || true
+  die "Karmada control plane incomplete (see above). Images now live on ${K3S_DATA_DIR} (/userdata) so root DiskPressure should be gone — if a disk-pressure taint still shows, check 'df -h /userdata' on $HOST_NAME."
+fi
+
+step 6 "Karmada control plane ready."
 log "Karmada API: https://${HOST_IP}:32443"
 log "kubeconfig:  $KARMADA_KUBECONFIG"
 log "Next: ./join-members.sh <N>"

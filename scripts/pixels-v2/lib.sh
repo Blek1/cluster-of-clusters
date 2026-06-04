@@ -91,6 +91,7 @@ k3s_install_server() {
     env INSTALL_K3S_SKIP_DOWNLOAD=true \
       INSTALL_K3S_EXEC="server --flannel-iface=$IFACE --node-ip='"$ip"' \
         --flannel-backend=host-gw --cluster-cidr='"$pod"' --service-cidr='"$svc"' \
+        --data-dir='"$K3S_DATA_DIR"' \
         --disable=traefik --node-name='"$name"' --tls-san='"$ip"'" \
       sh '"$ASSETS"'/k3s-install.sh
   '
@@ -105,15 +106,17 @@ k3s_install_agent() {
     IFACE=$(ls /sys/class/net | grep enx | head -1)
     env INSTALL_K3S_SKIP_DOWNLOAD=true \
       K3S_URL=https://'"$server_ip"':6443 K3S_TOKEN='"$token"' \
-      INSTALL_K3S_EXEC="agent --flannel-iface=$IFACE --node-ip='"$ip"' --node-name='"$name"'" \
+      INSTALL_K3S_EXEC="agent --flannel-iface=$IFACE --node-ip='"$ip"' --node-name='"$name"' \
+        --data-dir='"$K3S_DATA_DIR"'" \
       sh '"$ASSETS"'/k3s-install.sh
   '
   _apply_registries "$ip" k3s-agent
 }
 
-# get_node_token SERVER_IP — print a server's agent join token.
+# get_node_token SERVER_IP — print a server's agent join token. Lives under the
+# custom --data-dir (K3S_DATA_DIR), not the default /var/lib/rancher/k3s.
 get_node_token() {
-  ssh_root "$1" 'cat /var/lib/rancher/k3s/server/node-token'
+  ssh_root "$1" 'cat '"$K3S_DATA_DIR"'/server/node-token'
 }
 
 # fetch_member_kubeconfig SERVER_IP OUTFILE — pull a server's kubeconfig to the

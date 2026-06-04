@@ -8,10 +8,18 @@
 #   - unmount the etcd tmpfs and re-taint the host
 #   - wipe each member phone and rejoin it to Cluster D as an agent of pf-006
 #
-# pf-006 was never reinstalled (it has been the Cluster D server throughout), so
-# "baseline" just means: pf-006 server + the other 18 back as its agents.
+# This is the LIGHTWEIGHT, between-runs reset: pf-006 keeps running as the
+# Cluster D server, so it's fast. For a cold, from-scratch baseline that also
+# rebuilds pf-006 onto /userdata (e.g. starting a fresh campaign, or recovering a
+# wedged host), use ./build-clusterd.sh instead.
 
 source "$(dirname "$0")/lib.sh"
+
+# pf-006 stays up here, so its kubeconfig is still valid — but refetch it anyway
+# so a reset always self-heals a stale CA (the failure mode that silently made
+# every node look NotReady). Cheap insurance; pf-006's k3s.yaml is the live one.
+step 0 "Refreshing Cluster D kubeconfig from $HOST_NAME..."
+fetch_member_kubeconfig "$HOST_IP" "$HOST_KUBECONFIG"
 
 step 1 "Removing Karmada from host ($HOST_NAME)..."
 if [ -f "$KARMADA_KUBECONFIG" ] || command -v karmadactl >/dev/null 2>&1; then
