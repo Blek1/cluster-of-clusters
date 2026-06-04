@@ -19,6 +19,34 @@ Even splits of the 18-phone pool: `N=2 → 9,9` · `N=3 → 6,6,6` · `N=4 → 5
 `N=5 → 4,4,4,3,3`. CIDRs follow the reserved table in `docs.md`
 (`member-i` → pod `10.(48+2i).0.0/16`, svc `10.(49+2i).0.0/16`).
 
+## Topologies & Results
+
+For N≥2, pf-006 is always the host (Karmada control plane only) and the other 18
+phones are split evenly into the member clusters:
+
+- **N=1 — baseline (no Karmada):** Cluster D, pf-006 server + 18 agents = 19 nodes.
+- **N=2 — 1 host + 2 members:** pf-006 host · members of 9 and 9 phones.
+- **N=3 — 1 host + 3 members:** pf-006 host · members of 6, 6, and 6 phones. *(validates the published 3-cluster rule)*
+- **N=4 — 1 host + 4 members:** pf-006 host · members of 5, 5, 4, and 4 phones.
+- **N=5 — 1 host + 5 members:** pf-006 host · members of 4, 4, 4, 3, and 3 phones.
+
+### Results
+
+Rollout latency = wall-clock time for `run-experiments.sh` to take the workload
+Deployment to fully `Available`. Fill in after each run (default workload is 500
+`nginx:alpine` pods; the script prints the latency at the end).
+
+| Topology | Split | Workload (pods) | Rollout latency |
+|---|---|---|---|---|---|
+| Baseline | — | 500 | _TBD_ |
+| 2 members | 9, 9 | 500 | _TBD_ |
+| 3 members | 6, 6, 6 | 500 | _TBD_ |
+| 4 members | 5, 5, 4, 4 | 500 | _TBD_ |
+| 5 members | 4, 4, 4, 3, 3 | 500 | _TBD_ |
+
+> Status: the v2 scripts have not yet been run end-to-end on the live fleet, so
+> every latency above is a placeholder. Replace `_TBD_` as runs complete.
+
 ## Files
 
 | File | Where | Purpose |

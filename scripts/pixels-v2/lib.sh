@@ -61,11 +61,19 @@ ssh_root() {
 # k3s_wipe IP — uninstall whichever k3s role is present and restore the binary.
 # Both uninstall scripts wipe /usr/local/bin/k3s itself, so we always re-copy it
 # from the durable /userdata asset afterward.
+#
+# We must also rm the custom data-dir by hand: --data-dir is passed inside
+# INSTALL_K3S_EXEC, which the k3s-generated uninstall scripts don't see — they
+# only clean the default /var/lib/rancher/k3s. Without this, a server's old node
+# record (and its PodCIDR) survives into the next install, and if the phone is
+# reused at a different member index its new --cluster-cidr won't match the stale
+# CIDR, so node-ipam crash-loops the server ("cidr X is out the range of Y").
 k3s_wipe() {
   local ip=$1
   ssh_root "$ip" '
     [ -x /usr/local/bin/k3s-uninstall.sh ] && /usr/local/bin/k3s-uninstall.sh || true
     [ -x /usr/local/bin/k3s-agent-uninstall.sh ] && /usr/local/bin/k3s-agent-uninstall.sh || true
+    rm -rf '"$K3S_DATA_DIR"'
     cp '"$ASSETS"'/k3s-arm64 /usr/local/bin/k3s
     chmod +x /usr/local/bin/k3s
   '
