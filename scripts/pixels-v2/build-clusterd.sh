@@ -36,6 +36,9 @@ for i in "${!PHONE_NAMES[@]}"; do
   k3s_wipe "${PHONE_IPS[$i]}" >/dev/null 2>&1 &
 done
 wait
+# Drop any leftover Karmada etcd tmpfs from a prior run so the next
+# install-karmada starts etcd on a clean RAM mount (k3s_wipe doesn't touch it).
+ssh_root "$HOST_IP" 'mountpoint -q '"$ETCD_RAM_DIR"' && umount '"$ETCD_RAM_DIR"' || true'
 log "all phones wiped clean"
 
 step 2 "Installing $HOST_NAME as the Cluster D server on /userdata (${HOST_POD_CIDR} / ${HOST_SVC_CIDR})..."
@@ -67,5 +70,6 @@ done
 wait
 
 step 5 "Cluster D baseline ready (1x19, images on /userdata)."
+rm -f "$VAR_DIR"/member-*.kubeconfig    # stale member configs from any prior run
 kd get nodes -L switch,reservation -o wide
 log "Next: ./run-experiments.sh 1   (baseline)   or   ./bootstrap-phones.sh <N>"
