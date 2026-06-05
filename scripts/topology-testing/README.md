@@ -36,3 +36,12 @@ Steps: dependency check → cleanup → provision clusters → init Karmada → 
 | 4 | 92 | 96 | 135 |
 | 5 | 133 | 147 | 186 |
 | 6 | 97 | 130 | 186 |
+
+Latency falls from 2 to 3 clusters as federation's parallelism overcomes its
+coordination overhead, then climbs again past ~3 clusters. That rise is an
+artifact of the testbed, not of federation: every Kind "cluster" is just
+containers on a single computer, so each one added spins up another full control
+plane (apiserver, etcd, scheduler, controllers) competing for the same CPU,
+memory, and disk. Beyond a few clusters that per-cluster overhead outweighs the
+parallelism, because there is no extra physical hardware to absorb it — which is
+exactly what the bare-metal phone fleet provides (see `scripts/pixels-v2/`).

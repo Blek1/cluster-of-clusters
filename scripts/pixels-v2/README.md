@@ -1,6 +1,26 @@
 # Karmada on Pixel-Phone Bare-Metal — Version 2
 
-A clean re-architecture of the Pixel phone pipeline. v2 attempts to remove the root causes from v1 instead of patching the symptoms.
+A clean re-architecture of the Pixel phone pipeline. v2 removes the root causes from v1 instead of patching the symptoms.
+
+## From v1
+
+v1 ([post-mortem](../pixels-v1/README.md)) never got a multi-cluster control plane
+to stay up. It hit two hardware bottlenecks, and v2's architecture removes each at
+the source rather than patching it:
+
+- **etcd vs UFS flash (v1 Scenario A):** the Pixel's UFS storage couldn't keep up
+  with etcd's fsync-heavy write-ahead log, so the kubelet kept killing the
+  apiserver. v2 puts etcd on a tmpfs (RAM) mount, so those writes never touch
+  flash — see `ETCD_RAM_DIR` in `config.sh`.
+- **host-gw cross-node races (v1 Scenario B):** splitting etcd and the apiserver
+  across phones sent their traffic over the host-gw fabric, which black-holed
+  packets during cold-boot CPU spikes (Android kernels lack VXLAN). v2 co-locates
+  the entire control plane on one host node (pf-006), so there is no cross-node
+  control-plane traffic to race.
+
+The result is the stable federation v1 couldn't reach: every topology below runs
+Karmada to completion. The one challenge v2 *did* hit (DiskPressure) was new, and
+is written up under [Challenges Encountered](#challenges-encountered).
 
 ## Topology
 
@@ -26,22 +46,42 @@ phones are split evenly into the member clusters:
 
 - **N=1 — baseline (no Karmada):** Cluster D, pf-006 server + 18 agents = 19 nodes.
 - **N=2 — 1 host + 2 members:** pf-006 host · members of 9 and 9 phones.
-- **N=3 — 1 host + 3 members:** pf-006 host · members of 6, 6, and 6 phones. *(validates the published 3-cluster rule)*
+- **N=3 — 1 host + 3 members:** pf-006 host · members of 6, 6, and 6 phones. *(3 clusters is where federation overhead is overcome)*
 - **N=4 — 1 host + 4 members:** pf-006 host · members of 5, 5, 4, and 4 phones.
 - **N=5 — 1 host + 5 members:** pf-006 host · members of 4, 4, 4, 3, and 3 phones.
 
 ### Results
 
 Rollout latency (s) across workload sizes, to locate the split threshold — the
-pod count where the federated rows first beat the baseline. _Run pending._
+pod count where the federated rows first beat the baseline.
 
-| Topology | 50 | 100 | 500 | 1000 | 2000 |
-|---|---|---|---|---|---|
-| Baseline  | _TBD_ | _TBD_ | 27 | _TBD_ | _TBD_ |
-| 2 members | _TBD_ | _TBD_ | 15 | _TBD_ | _TBD_ |
-| 3 members | _TBD_ | _TBD_ | 11 | _TBD_ | _TBD_ |
-| 4 members | _TBD_ | _TBD_ | 9 | _TBD_ | _TBD_ |
-| 5 members | _TBD_ | _TBD_ | 8 | _TBD_ | _TBD_ |
+| Topology | 50 | 100 | 500 | 1000 | 1500 | 2000 |
+|---|---|---|---|---|---|---|
+| Baseline  | 11 | 7 | 27 | 53 | 78 | 105 |
+| 2 members | 12 | 4 | 15 | 27 | 40 | FAIL |
+| 3 members | 11 | 4 | 11 | 18 | 27 | FAIL |
+| 4 members | 11 | 4 | 9 | 15 | 21 | FAIL |
+| 5 members | 11 | 4 | 8 | 13 | 18 | FAIL |
+
+**Analysis.** Federation on hardware is not strictly better or worse than one big cluster, it just seems to trade latency for capacity. Splitting turns one cluster's serial
+scheduling (everything through a single apiserver/scheduler) into parallel scheduling across N independent control planes on separate hardware. The data shows three things:
+
+- ≤100 pods — don't split. Nothing to parallelize, so federation overhead
+  makes it slightly worse (50 pods: baseline 11 vs 2-member 12).
+- 500–1500 pods — split; ~3 members is enough. The win is large and grows
+  with load (1500 pods: 78 → 18, ≈4.3×), but adding members has sharply
+  diminishing returns — at 500 pods, 2→3→4→5 members buys 15 → 11 → 9 → 8. Most
+  of the gain is in by ~3 clusters, matching what we saw in the Kind experiments
+  (`scripts/topology-testing/`), where latency dropped from 2 to 3 clusters as
+  federation overcame its overhead.
+- 2000 pods — splitting breaks the workload. The baseline still finishes
+  (105 s), but every federated split fails: subdividing shrank each member
+  below the capacity the job needs (likely the ~110-pod/node kubelet cap), so the
+  divided replicas can't all schedule.
+
+Design rule: split when the workload is big enough to amortize federation
+overhead (>~100 pods here) but small enough to fit comfortably within the reduced
+per-member capacity. ~3 members is the efficient default; more buys little.
 
 ## Files
 
@@ -72,7 +112,7 @@ cd scripts/pixels-v2
 # Do this once at the start of a campaign — every later run inherits this state.
 ./build-clusterd.sh
 
-# Federated: 1 host + 3 member clusters (validates the published 3-cluster rule)
+# Federated: 1 host + 3 member clusters (3 clusters is where federation overhead is overcome)
 ./bootstrap-phones.sh 3
 ./verify-topology.sh 3
 
@@ -151,4 +191,26 @@ Filesystem      Size  Used Avail Use% Mounted on
 
 Solved by moving the K3s data dir — and with it the containerd image store — onto
 `/userdata` (see `K3S_DATA_DIR` in `config.sh` and `build-clusterd.sh`).
+
+## Future Work
+
+The results above are bounded by a 19-phone fleet, so both axes of the sweep stop
+early — the workload axis hits the per-member capacity cliff at 2000 pods, and the
+topology axis tops out at 5 members. The fleet is expected to grow toward thousands of
+phones, which lifts both ceilings and opens the more interesting questions.
+
+- Scaling the fleet: With orders of magnitude more nodes, the
+  capacity cliff moves far out, so the sweet-spot and failure regimes can be
+  mapped properly instead of inferred from limited experimentation. It also tests whether
+  the "~3 members captures most of the gain" rule holds at scale or whether the
+  knee shifts as clusters get larger. `config.sh` is the only file that needs to change,
+  everything downstream is already fleet-size-agnostic, but the
+  reserved-CIDR table (`MAX_MEMBER_CLUSTERS=5`) and the parallel-wipe/join fan-out
+  will need revisiting for thousands of nodes.
+- Push the workload: At scale, re-run with 5k–50k+
+  pods and larger per-pod footprints to find where the baseline cluster
+  finally becomes the bottleneck.
+- Vary the topology shape: The splits here are even
+  (`9,9` … `4,4,4,3,3`). Real federations are lopsided — test skewed splits,
+  heterogeneous member sizes, and placement policies beyond `Divided`/`Weighted`.
 
