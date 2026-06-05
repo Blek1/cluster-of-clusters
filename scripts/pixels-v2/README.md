@@ -32,20 +32,16 @@ phones are split evenly into the member clusters:
 
 ### Results
 
-Rollout latency = wall-clock time for `run-experiments.sh` to take the workload
-Deployment to fully `Available`. Fill in after each run (default workload is 500
-`nginx:alpine` pods; the script prints the latency at the end).
+Rollout latency (s) across workload sizes, to locate the split threshold — the
+pod count where the federated rows first beat the baseline. _Run pending._
 
-| Topology | Split | Workload (pods) | Rollout latency |
+| Topology | 50 | 100 | 500 | 1000 | 2000 |
 |---|---|---|---|---|---|
-| Baseline | — | 500 | _TBD_ |
-| 2 members | 9, 9 | 500 | _TBD_ |
-| 3 members | 6, 6, 6 | 500 | _TBD_ |
-| 4 members | 5, 5, 4, 4 | 500 | _TBD_ |
-| 5 members | 4, 4, 4, 3, 3 | 500 | _TBD_ |
-
-> Status: the v2 scripts have not yet been run end-to-end on the live fleet, so
-> every latency above is a placeholder. Replace `_TBD_` as runs complete.
+| Baseline  | _TBD_ | _TBD_ | 27 | _TBD_ | _TBD_ |
+| 2 members | _TBD_ | _TBD_ | 15 | _TBD_ | _TBD_ |
+| 3 members | _TBD_ | _TBD_ | 11 | _TBD_ | _TBD_ |
+| 4 members | _TBD_ | _TBD_ | 9 | _TBD_ | _TBD_ |
+| 5 members | _TBD_ | _TBD_ | 8 | _TBD_ | _TBD_ |
 
 ## Files
 
@@ -62,7 +58,8 @@ Deployment to fully `Available`. Fill in after each run (default workload is 500
 | `check-phones.sh` | jump host | Node readiness + containerd-recovery reminder. |
 | `monitor-phones.sh <N>` | jump host | Live rollout dashboard. |
 | `reset-phones.sh` | jump host | Fold everything back into the 1×19 baseline. |
-| `run-experiments.sh <N> [REPLICAS]` | laptop | Inject the workload, time the rollout. |
+| `run-experiments.sh <N> [REPLICAS]` | laptop | Inject one workload, time the rollout (interactive; needs the tunnel). |
+| `sweep.sh` | jump host | **Unattended workload×topology sweep.** Build each `N`, inject every workload size, write latencies to a CSV. No tunnel needed. |
 
 ## Usage
 
@@ -94,6 +91,16 @@ ssh -L 6443:10.0.0.16:6443 -L 32443:10.0.0.16:32443 straw-hat   # leave open
 
 ```bash
 ./reset-phones.sh                 # on the jump host (lightweight; keeps pf-006)
+```
+
+### Sweeping workloads across topologies
+
+`sweep.sh` (jump host, no tunnel) builds each topology and injects every workload
+size, writing `clusters-v2/sweep-results.csv`:
+
+```bash
+./sweep.sh                                          # 1..5 × 50/100/500/1000/2000 pods
+TOPOLOGIES="1 3 5" WORKLOADS="100 1000" REPEATS=3 ./sweep.sh
 ```
 
 `build-clusterd.sh` vs `reset-phones.sh`: both land you at the 1×19 baseline.

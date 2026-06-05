@@ -164,3 +164,63 @@ wait_node_ready() {
 # member_kubeconfig_path I — path to member cluster i's kubeconfig on jump host.
 member_kubeconfig_path() { echo "${VAR_DIR}/member-$1.kubeconfig"; }
 member_cluster_name()    { echo "member-$1"; }
+
+# ---------------------------------------------------------------------------
+# Workload (experiment) helpers
+# ---------------------------------------------------------------------------
+
+# workload_manifest N REPLICAS OUTFILE — write the experiment manifest.
+# N=1 is a bare Deployment applied to Cluster D. N>=2 also emits a Karmada
+# PropagationPolicy that divides the replicas across member-1..member-N.
+# Kept here (not inline in a script) so run-experiments.sh and sweep.sh inject
+# byte-for-byte the same workload — a latency comparison is only meaningful if
+# the thing being timed is identical across paths.
+workload_manifest() {
+  local n=$1 replicas=$2 out=$3 i
+  cat >"$out" <<EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: workload-nginx
+spec:
+  replicas: ${replicas}
+  selector:
+    matchLabels: { app: nginx }
+  template:
+    metadata:
+      labels: { app: nginx }
+    spec:
+      tolerations:
+        - key: "reservation"
+          operator: "Equal"
+          value: "${RESERVATION}"
+          effect: "NoSchedule"
+      containers:
+        - name: nginx
+          image: ${WORKLOAD_IMAGE}
+          resources:
+            requests: { cpu: "5m", memory: "10Mi" }
+EOF
+  [ "$n" -lt 2 ] && return 0
+  cat >>"$out" <<EOF
+---
+apiVersion: policy.karmada.io/v1alpha1
+kind: PropagationPolicy
+metadata:
+  name: workload-propagation
+spec:
+  resourceSelectors:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: workload-nginx
+  placement:
+    clusterAffinity:
+      clusterNames:
+EOF
+  for i in $(seq 1 "$n"); do echo "        - member-$i" >>"$out"; done
+  cat >>"$out" <<EOF
+    replicaScheduling:
+      replicaDivisionPreference: Weighted
+      replicaSchedulingType: Divided
+EOF
+}
