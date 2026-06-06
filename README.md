@@ -12,7 +12,8 @@ scripts/
   karmada-orchestration/  Karmada control plane and KWOK fake-node setup
   observability/          Prometheus/Grafana monitoring and dashboards
   topology-testing/       Kind-based topology experiments
-  physical-pixels/        Physical Pixel phone experiments
+  pixels-v1/              Physical Pixel phone experiments — v1 post-mortem
+  pixels-v2/              Physical Pixel phone experiments — v2 (working federation)
   stress-testing/         Simple Kind workload stress tests
   kwok-testing/           KWOK + ClusterLoader2 stress framework
   experiments/            Misc experiments and prototypes
@@ -84,9 +85,10 @@ The pipeline above is the main path. Other directories under `scripts/` are
 self-contained — see each one's README:
 
 - `scripts/kwok-testing/` — KWOK + ClusterLoader2 control-plane benchmarking
-- `scripts/topology-testing/` — end-to-end topology experiments with rollout-latency measurement
+- `scripts/topology-testing/` — end-to-end Kind topology experiments with rollout-latency measurement; the simulation half of the story validated on phones in `pixels-v2/`
 - `scripts/stress-testing/` — stress-ng workloads against a single Kind cluster
-- `scripts/physical-pixels/` — experiments on physical Pixel hardware
+- `scripts/pixels-v1/` — physical Pixel phone experiments: v1 post-mortem (where the multi-cluster control plane wouldn't stay up)
+- `scripts/pixels-v2/` — physical Pixel phone experiments: v2, the working federation that removes v1's root causes
 - `scripts/experiments/` — assorted prototypes and scratch setups
 
 ## Contributors
