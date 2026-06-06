@@ -26,7 +26,7 @@ shot on a tripod (or phone braced on books). Good even lighting, no window glare
 > "Hi — we're the Cluster of Clusters team, CSE 237D."
 
 **Then each person, one at a time (small step forward or just a beat):**
-> Felicia: "I'm Felicia — I ran our experiments on real Pixel phones."
+> Felicia: "I'm Felicia — I ran our experiments on the physical Pixel cluster."
 > Blake: "I'm Blake — I built the monitoring and dashboards."
 > Tahseen: "I'm Tahseen — I pushed the system to scale."
 > Afraz: "I'm Afraz — I tested the cluster layouts."
@@ -37,7 +37,7 @@ shot on a tripod (or phone braced on books). Good even lighting, no window glare
 
 ---
 
-## SCENE 2 — The Case  · 0:40–1:05 · **VO over live action**
+## SCENE 2 — The Question  · 0:40–1:05 · **VO over live action**
 
 **[SHOT]** A whiteboard. One person uncaps a marker and writes the question while
 the others lean in, thinking, pointing. Film it as quiet action — no talking on camera
@@ -48,20 +48,20 @@ the others lean in, thinking, pointing. Film it as quiet action — no talking o
 > **→ and into how many?**
 
 **[VO — Felicia]:**
-> "We were handed a pile of phones you'd normally throw away — and one question. A single computer can only do so much before you need more. But splitting one big system into many isn't free. So when is it actually worth it — and how far do you go?"
+> "Our project looks at a core question in distributed systems: when should a single Kubernetes cluster be split into several smaller ones — and into how many? One cluster can only handle so much before its control plane becomes a bottleneck. But splitting has its own cost. We set out to find where that trade-off tips."
 
 **Transition:** The team stops, all turn and look toward the desk.
 
 ---
 
-## SCENE 3 — The Suspect  · 1:05–1:25 · **VO + animation**
+## SCENE 3 — The Hardware  · 1:05–1:25 · **VO + animation**
 
 **[SHOT]** From behind/over the group as they turn to Felicia's Pixel sitting on the
 desk. Then a slow **push-in (zoom) onto the phone** until it fills the frame. (Do a
 slow manual move; the editor can also punch in.)
 
 **[VO — Felicia]:**
-> "It starts with this — a phone you'd leave in a drawer. Now picture eighteen of them, wired together, running real Kubernetes."
+> "We run these experiments on a cluster of Pixel phones — low-power, low-cost hardware that's a realistic stand-in for edge devices. Picture eighteen of them running Kubernetes together."
 
 **[ANIMATION #1 — required]:** On the line "eighteen of them," the single phone
 **multiplies** into a small grid/cluster of phones. This is the hero animation.
@@ -70,7 +70,7 @@ slow manual move; the editor can also punch in.)
 
 ---
 
-## SCENE 4 — Three Leads  · 1:25–2:15 · **VO over screen-recordings**
+## SCENE 4 — Three Lines of Investigation  · 1:25–2:15 · **VO over screen-recordings**
 
 **[SHOT]** No people needed — this rides on screen-recordings (captured in OBS). Show
 a quick taste of each tier as it's named:
@@ -81,8 +81,8 @@ a quick taste of each tier as it's named:
 **[TEXT]** As each appears: **"KIND — simulate"**, then **"KWOK — scale"**, then **"PIXELS — reality"**.
 
 **[VO — Afraz, then Tahseen]:**
-> (Afraz) "We couldn't test every possible layout on real hardware — so we investigated in three tiers. First, **Kind**: cheap virtual clusters on a laptop, so we could sweep dozens of layouts fast."
-> (Tahseen) "Then **KWOK**, to push the control plane to thousands of fake nodes and find where it breaks. And finally — the real Pixels."
+> (Afraz) "Testing every layout on physical hardware isn't practical, so we investigated in three tiers. First, **Kind** — lightweight virtual clusters on a laptop — to compare many layouts quickly."
+> (Tahseen) "Then **KWOK**, to simulate thousands of nodes and find the control plane's limits. And finally, the physical Pixel cluster."
 
 **Transition:** Push into the first piece of evidence.
 
@@ -100,7 +100,7 @@ a quick taste of each tier as it's named:
 **[TEXT]** "Tier 1 · Simulation (Kind)" + a caption with the finding.
 
 **[VO — Afraz]:**
-> "At small scale, one cluster actually wins — splitting just adds overhead. The split only starts to pay off as the system grows. **[FILL IN: state the threshold from the final chart.]**"
+> "At small scale, a single cluster performs best — splitting only adds overhead. The benefit appears as the system grows larger. **[FILL IN: state the threshold from the final chart.]**"
 
 **Transition:** Push into the printed graph → dissolve to Scene 6.
 
@@ -114,24 +114,22 @@ control-plane panel moving. Speed-ramp it so it feels alive.
 **[TEXT]** "Tier 2 · Scale (KWOK)" + finding caption.
 
 **[VO — Tahseen]:**
-> "Then we asked the other direction: how big can a single cluster get before the control plane chokes? **[FILL IN: the ceiling — e.g. around 65 nodes, or the request-rate wall.]** That's the real reason to split — not size for its own sake, but the moment one brain can't keep up."
+> "We also looked at the upper limit: how large a single cluster can grow before the control plane becomes the bottleneck. **[FILL IN: the ceiling — e.g. around 65 nodes, or the request-rate limit.]** That's the real trigger for splitting — not size alone, but the point where one control plane can't keep up."
 
 **Transition:** Hard cut on a spike in the graph.
 
 ---
 
-## SCENE 7 — Evidence C: Pixels + the Disaster  · 3:10–3:55 · **VO over montage**
+## SCENE 7 — Evidence C: Pixels (Hardware Limits)  · 3:10–3:55 · **VO over screen-recording**
 
-**[SHOT]** Playful-dramatic montage:
-- Red error logs flashing by (screen-recording / scroll the v1 logs from the README).
-- A beat on the real phone.
-- A small dramatic moment for **`pf-006` failing** (the phone that literally died).
-- Then the "fix" — calmer shot of the real phone running steadily.
+**[SHOT]** Two parts, calm and factual:
+- The v1 error logs scrolling (screen-recording / the v1 logs from the README).
+- Then the stable v2 run — the real phone / a terminal showing the control plane staying up.
 
-**[TEXT]** "Tier 3 · Reality (Pixels)" → then "v1 ✗ → v2 ✓".
+**[TEXT]** "Tier 3 · Reality (Pixels)" → then "v1 → v2".
 
 **[VO — Felicia]:**
-> "Real hardware fought back. On the phones, the control-plane database hammered the cheap flash storage until it gave out — and Android's networking dropped packets mid-startup. Our first version never came together. So we rebuilt it: move the heavy data off the tiny system partition, and the control plane finally held. **[FILL IN: v2 result — or 'these results are still coming in.']**"
+> "Physical hardware introduced constraints the simulations didn't. The control-plane database was bottlenecked by the phones' flash-storage I/O, and the networking stack dropped packets during startup. Our first version couldn't sustain the federation, so we re-architected it — moving the data store off the constrained system partition let the control plane stabilize. **[FILL IN: v2 result — or 'these results are still coming in.']**"
 
 **Transition:** Slow dissolve back to the whiteboard.
 
@@ -147,7 +145,7 @@ answer. Calm, deliberate — this is the serious payoff. No talking on camera (V
 > **Then split into the fewest clusters that clear the bottleneck.**
 
 **[VO — Blake]:**
-> "So — when should one cluster become many? Only when a single control plane can't keep up. And how many? The fewest that clear the bottleneck — because every split has a cost. On junk hardware, that cost is exactly what decides the answer."
+> "So — when should one cluster become many? Only when a single control plane can't keep up. And how many? The fewest that clear the bottleneck — because every split adds overhead. On constrained hardware, that overhead is what decides the answer."
 
 **Transition:** Camera pulls back from the desk.
 
@@ -156,8 +154,7 @@ answer. Calm, deliberate — this is the serious payoff. No talking on camera (V
 ## SCENE 9 — Outro  · 4:25–4:40 · **LIVE audio + animation**
 
 **[SHOT]** **Zoom OUT** from the phone / animated cluster (mirrors Scene 3's zoom-in)
-until the team is back in frame together. Optional playful button: a tiny "RIP pf-006"
-card or blooper.
+until the team is back in frame together. Optional light blooper at the very end.
 
 **[LIVE — group, together]:**
 > "Cluster of Clusters. Thanks for watching!"
