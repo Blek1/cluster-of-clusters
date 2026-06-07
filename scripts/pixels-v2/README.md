@@ -100,6 +100,7 @@ per-member capacity. ~3 members is the efficient default; more buys little.
 | `reset-phones.sh` | jump host | Fold everything back into the 1×19 baseline. |
 | `run-experiments.sh <N> [REPLICAS]` | laptop | Inject one workload, time the rollout (interactive; needs the tunnel). |
 | `sweep.sh` | jump host | **Unattended workload×topology sweep.** Build each `N`, inject every workload size, write latencies to a CSV. No tunnel needed. |
+| `plot-results.py` | jump host | Turn `sweep-results.csv` into two figures: latency-vs-workload (the split threshold) and the members knee. Needs `matplotlib`. |
 
 ## Usage
 
@@ -141,6 +142,12 @@ size, writing `clusters-v2/sweep-results.csv`:
 ```bash
 ./sweep.sh                                          # 1..5 × 50/100/500/1000/2000 pods
 TOPOLOGIES="1 3 5" WORKLOADS="100 1000" REPEATS=3 ./sweep.sh
+```
+
+Then plot the CSV (writes `latency-vs-workload.png` and `members-knee.png` beside it):
+
+```bash
+python3 plot-results.py "$VAR_DIR/sweep-results.csv"   # pip install matplotlib if missing
 ```
 
 `build-clusterd.sh` vs `reset-phones.sh`: both land you at the 1×19 baseline.
